@@ -161,7 +161,7 @@ namespace PhysicalRoom.UnityBridge
         {
             if (!_emergencyStop) return;
             _emergencyStop = false;
-            DeactivateEmergencyStop();
+            EmergencyStopDeactivated?.Invoke(); // was calling itself
             Debug.Log("[Bridge] Emergency stop cleared");
         }
 

@@ -2,19 +2,20 @@ using UnityEngine;
 using UnityEngine.Events;
 using PhysicalRoom.UnityBridge;
 
-/// <summary>
-/// Sends Sauron commands through VrRobotUdpBridge → RobotHub → robot.
-/// The hub handles per-robot top servo range remapping automatically.
-/// Uses stable robot IDs: 4=sauron1, 5=sauron2.
-/// </summary>
 public class SauronCommandPublisher : MonoBehaviour
 {
+    public enum SauronRobotId
+    {
+        Sauron1_IP120 = 4,   // top_servo_range (0,180) — full range
+        Sauron2_IP121 = 5,   // top_servo_range (10,70) — hub remaps automatically
+    }
+
     [Header("References")]
     [SerializeField] private VrRobotUdpBridge bridge;
 
     [Header("Robot Identity")]
-    [Tooltip("Hub robot ID: 4=sauron1, 5=sauron2")]
-    [SerializeField, Range(4, 5)] private int robotId = 4;
+    [Tooltip("Hub remaps top servo range per robot automatically")]
+    [SerializeField] private SauronRobotId robotId = SauronRobotId.Sauron1_IP120;
 
     [Header("Current State — read only")]
     [SerializeField, Range(0, 180)] private int bottomServoAngle = 90;
@@ -28,8 +29,6 @@ public class SauronCommandPublisher : MonoBehaviour
         if (bridge == null)
             bridge = FindObjectOfType<VrRobotUdpBridge>();
     }
-
-    // ── Public API ───────────────────────────────────────────────────────────
 
     public void SetBothServos(int bottom, int top)
     {
@@ -69,17 +68,10 @@ public class SauronCommandPublisher : MonoBehaviour
         SendCommand();
     }
 
-    // ── Internal ─────────────────────────────────────────────────────────────
-
     private void SendCommand()
     {
         if (bridge == null) return;
-
-        // Hub remaps topServoAngle to the physical range per robot:
-        // sauron1: top_servo_range=(0,180)  → no change
-        // sauron2: top_servo_range=(10,70)  → hub maps 0-180 → 10-70
-        bridge.SendSauronCommand(robotId, bottomServoAngle, topServoAngle);
-
+        bridge.SendSauronCommand((int)robotId, bottomServoAngle, topServoAngle);
         onCommandSent?.Invoke();
     }
 }

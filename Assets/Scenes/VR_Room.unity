@@ -3345,6 +3345,7 @@ GameObject:
   - component: {fileID: 2095526952}
   - component: {fileID: 2095526951}
   - component: {fileID: 2095526950}
+  - component: {fileID: 2095526954}
   m_Layer: 0
   m_Name: PoseController
   m_TagString: Untagged
@@ -3388,16 +3389,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   poseDetector: {fileID: 2095526952}
   robotSelector: {fileID: 2095526950}
-  leftStickAction: {fileID: 0}
-  rightStickAction: {fileID: 0}
-  leftTriggerAction: {fileID: 0}
-  rightTriggerAction: {fileID: 0}
-  leftGripAction: {fileID: 0}
-  rightGripAction: {fileID: 0}
-  aButtonAction: {fileID: 0}
-  bButtonAction: {fileID: 0}
-  xButtonAction: {fileID: 0}
-  yButtonAction: {fileID: 0}
+  leftStickAction: {fileID: 3873409416322058290, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  rightStickAction: {fileID: 2990578776769841568, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  leftTriggerAction: {fileID: 8362300759372525055, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  rightTriggerAction: {fileID: 5536943242687151439, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  leftGripAction: {fileID: 38915880109894571, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  rightGripAction: {fileID: 3391169062359559377, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  aButtonAction: {fileID: 6160459741480101954, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  bButtonAction: {fileID: 7089148287680975347, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  xButtonAction: {fileID: 626075117074610789, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
+  yButtonAction: {fileID: 1869542760840530592, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
   sauronYawRate: 60
   sauronPitchRate: 45
   triggerDeadzone: 0.1
@@ -3440,6 +3441,19 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2095526954
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2095526949}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0b77dd353a2bbd4ba0fd4697ed2ae40, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  actions: {fileID: -944628639613478452, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
