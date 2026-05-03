@@ -444,18 +444,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7b1ecff9055fd944d8a24de3ecff6ef0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  bridge: {fileID: 0}
-  autoComposeIp: 1
-  robotSlot: 121
-  robotIp: 192.168.104.121
-  robotPort: 4210
-  isSauron2: 1
+  bridge: {fileID: 1879940529}
+  robotId: 5
   bottomServoAngle: 90
   topServoAngle: 90
-  manualModeEnabled: 0
-  autoMapTopServo: 1
-  sauron2TopMin: 10
-  sauron2TopMax: 70
   onCommandSent:
     m_PersistentCalls:
       m_Calls: []
@@ -506,10 +498,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bridge: {fileID: 1879940529}
-  autoComposeIp: 1
-  robotSlot: 112
-  robotIp: 192.168.104.112
-  robotPort: 4210
+  robotId: 1
   defaultMotorSpeedUnits: 90
   defaultLedRadius: 5
   defaultLedBrightness: 150
@@ -681,10 +670,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bridge: {fileID: 1879940529}
-  autoComposeIp: 1
-  robotSlot: 111
-  robotIp: 192.168.104.111
-  robotPort: 4210
+  robotId: 2
   defaultMotorSpeedUnits: 90
   defaultLedRadius: 5
   defaultLedBrightness: 150
@@ -1168,17 +1154,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bridge: {fileID: 1879940529}
-  autoComposeIp: 1
-  robotSlot: 120
-  robotIp: 192.168.104.120
-  robotPort: 4210
-  isSauron2: 0
+  robotId: 4
   bottomServoAngle: 90
   topServoAngle: 90
-  manualModeEnabled: 0
-  autoMapTopServo: 1
-  sauron2TopMin: 10
-  sauron2TopMax: 70
   onCommandSent:
     m_PersistentCalls:
       m_Calls: []
@@ -2862,10 +2840,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bridge: {fileID: 1879940529}
-  autoComposeIp: 1
-  robotSlot: 110
-  robotIp: 192.168.104.110
-  robotPort: 4210
+  robotId: 3
   defaultMotorSpeedUnits: 90
   defaultLedRadius: 5
   defaultLedBrightness: 150
@@ -2907,13 +2882,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64009ed044e2ca240b552624a6466a09, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  networkBase: 192.168.104
-  robotUdpPort: 4210
-  feedbackPort: 5008
+  hubIp: 192.168.137.1
+  hubPort: 5600
   autoStart: 1
   sendSafeStateOnStart: 1
-  trackConnectionHealth: 1
-  connectionTimeoutSeconds: 5
 --- !u!4 &1879940530
 Transform:
   m_ObjectHideFlags: 0
@@ -3392,7 +3364,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 00e1b753f2d14274f8eece5c18a14f6d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  poseDetector: {fileID: 0}
+  poseDetector: {fileID: 2095526952}
   headset: {fileID: 167552076}
   netoRobots:
   - {fileID: 280147222}
@@ -3401,7 +3373,7 @@ MonoBehaviour:
   sauronRobots:
   - {fileID: 777780908}
   - {fileID: 253557402}
-  gestureTargetSauron: {fileID: 0}
+  gestureTargetSauron: {fileID: 253557402}
 --- !u!114 &2095526951
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3414,13 +3386,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10be765b98e5b4c40888efdaa0cbcdcd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  poseDetector: {fileID: 0}
-  robotSelector: {fileID: 0}
+  poseDetector: {fileID: 2095526952}
+  robotSelector: {fileID: 2095526950}
   leftStickAction: {fileID: 0}
   rightStickAction: {fileID: 0}
-  primaryButtonAction: {fileID: 0}
-  secondaryButtonAction: {fileID: 0}
-  netoMotorRate: 60
+  leftTriggerAction: {fileID: 0}
+  rightTriggerAction: {fileID: 0}
+  leftGripAction: {fileID: 0}
+  rightGripAction: {fileID: 0}
+  aButtonAction: {fileID: 0}
+  bButtonAction: {fileID: 0}
+  xButtonAction: {fileID: 0}
+  yButtonAction: {fileID: 0}
+  sauronYawRate: 60
+  sauronPitchRate: 45
+  triggerDeadzone: 0.1
+  sauronSendRateHz: 20
+  netoDeadzone: 0.12
+  netoSendRateHz: 20
 --- !u!114 &2095526952
 MonoBehaviour:
   m_ObjectHideFlags: 0

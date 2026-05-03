@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -12,451 +9,221 @@ using UnityEngine;
 namespace PhysicalRoom.UnityBridge
 {
     /// <summary>
-    /// Manages the UDP transport between Unity and the vr_interface_node.
-    /// Handles the binary control stream (Unity -> ROS) and the pose/sensor feedback streams (ROS -> Unity).
+    /// Sends protocol_v2 packets to the RobotHub running on the PC (port 5600).
+    /// Hub translates them into 6-byte robot frames and forwards to each robot.
+    /// Robot IDs match hub's registry: neto1=1, neto2=2, neto3=3, sauron1=4, sauron2=5, deathtrap1=6
     /// </summary>
     public class VrRobotUdpBridge : MonoBehaviour
     {
-        [Header("Network Configuration")]
-        [SerializeField]
-        private string networkBase = "192.168.104";
-
-        [SerializeField]
-        private int robotUdpPort = 4210;
-
-        [SerializeField]
-        private int feedbackPort = 5008;
+        [Header("Hub Connection")]
+        [Tooltip("IP of the PC running RobotHub. On Quest via hotspot this is usually 192.168.137.1")]
+        [SerializeField] private string hubIp = "192.168.137.1";
+        [SerializeField] private int hubPort = 5600;
 
         [Header("Runtime")]
-        [SerializeField]
-        private bool autoStart = true;
+        [SerializeField] private bool autoStart = true;
+        [SerializeField] private bool sendSafeStateOnStart = true;
 
-        [SerializeField]
-        private bool sendSafeStateOnStart = true;
+        // Protocol constants
+        private static readonly byte[] MAGIC = { (byte)'P', (byte)'R' };
+        private const byte VERSION = 1;
+        private const byte MSG_COMMAND = 4;
 
-        [Header("Connection Status")]
-        [SerializeField]
-        private bool trackConnectionHealth = true;
+        // Command types — must match protocol_v2.py CommandType
+        private const byte CMD_NETO_SET = 1;
+        private const byte CMD_SAURON_SET = 10;
+        private const byte CMD_BROADCAST = 255;
 
-        [SerializeField, Range(1f, 30f)]
-        private float connectionTimeoutSeconds = 5f;
+        // Broadcast command IDs
+        private const byte BROADCAST_ENABLE = 17;
+        private const byte BROADCAST_DISABLE = 18;
 
-        public string NetworkBase => networkBase;
-        public int RobotUdpPort => robotUdpPort;
+        // Robot IDs — must match hub's _id_to_name map
+        public const int ID_NETO1 = 1;
+        public const int ID_NETO2 = 2;
+        public const int ID_NETO3 = 3;
+        public const int ID_SAURON1 = 4;
+        public const int ID_SAURON2 = 5;
+        public const int ID_DEATHTRAP = 6;
 
-        private readonly ConcurrentQueue<Action> mainThreadActions = new();
-        private CancellationTokenSource cancellation;
-        private UdpClient controlClient;
-        private UdpClient feedbackListener;
-        private bool emergencyStopActive;
-        private readonly ConcurrentDictionary<string, float> lastFeedbackTime = new();
+        private UdpClient _client;
+        private IPEndPoint _hubEndpoint;
+        private ushort _seq = 1;
+        private bool _emergencyStop;
 
-        public event Action<RobotSensorEvent> SensorEventReceived;
+        private readonly ConcurrentQueue<Action> _mainThread = new();
+        private CancellationTokenSource _cts;
+
+        public bool IsRunning => _cts != null && !_cts.IsCancellationRequested;
+        public bool IsEmergencyStopped => _emergencyStop;
+
         public event Action<string> RobotConnectionLost;
         public event Action<string> RobotConnectionRestored;
         public event Action EmergencyStopActivated;
         public event Action EmergencyStopDeactivated;
 
-        public bool IsRunning => cancellation != null && !cancellation.IsCancellationRequested;
-        public bool IsEmergencyStopped => emergencyStopActive;
+        // ── Lifecycle ────────────────────────────────────────────────────────
 
         private void Start()
         {
-            if (autoStart)
-            {
-                StartBridge();
-            }
+            if (autoStart) StartBridge();
         }
 
         public void StartBridge()
         {
-            if (IsRunning)
-            {
-                return;
-            }
+            if (IsRunning) return;
 
-            cancellation = new CancellationTokenSource();
-            controlClient = new UdpClient();
-
-            feedbackListener = CreateListener(feedbackPort);
-
-            _ = Task.Run(() => ReceiveFeedbackLoop(cancellation.Token), cancellation.Token);
-
-            if (trackConnectionHealth)
-            {
-                _ = Task.Run(() => MonitorConnectionHealth(cancellation.Token), cancellation.Token);
-            }
+            _cts = new CancellationTokenSource();
+            _hubEndpoint = new IPEndPoint(IPAddress.Parse(hubIp), hubPort);
+            _client = new UdpClient();
+            _client.Client.SendTimeout = 500;
 
             if (sendSafeStateOnStart)
-            {
                 SendSafeStateToAllRobots();
-            }
+
+            Debug.Log($"[Bridge] Started — hub at {hubIp}:{hubPort}");
         }
 
         public void StopBridge()
         {
-            if (!IsRunning)
-            {
-                return;
-            }
-
-            cancellation.Cancel();
-
-            controlClient?.Close();
-            feedbackListener?.Close();
-
-            controlClient = null;
-            feedbackListener = null;
+            if (!IsRunning) return;
+            _cts.Cancel();
+            _client?.Close();
+            _client = null;
         }
 
-        private void OnDestroy()
-        {
-            StopBridge();
-        }
+        private void OnDestroy() => StopBridge();
 
         private void Update()
         {
-            while (mainThreadActions.TryDequeue(out var action))
-            {
+            while (_mainThread.TryDequeue(out var action))
                 action.Invoke();
-            }
         }
 
-        public void SendNetoControl(string robotIp, int port, NetoCommand command)
+        // ── Public send API ──────────────────────────────────────────────────
+
+        public void SendNetoCommand(int robotId, int sound, int volume,
+                                     int speedUnits, int ledRadius, int ledBrightness)
         {
-            if (controlClient == null)
-            {
-                Debug.LogWarning("VrRobotUdpBridge: control client not ready");
-                return;
-            }
+            if (!CanSend()) return;
 
-            if (emergencyStopActive)
-            {
-                Debug.LogWarning("VrRobotUdpBridge: Emergency stop active, blocking Neto command");
-                return;
-            }
+            byte[] payload = new byte[6];
+            payload[0] = CMD_NETO_SET;
+            payload[1] = (byte)Mathf.Clamp(sound, 0, 1);
+            payload[2] = (byte)Mathf.Clamp(volume, 0, 20);
+            payload[3] = (byte)Mathf.Clamp(speedUnits, 0, 180);
+            payload[4] = (byte)Mathf.Clamp(ledRadius, 0, 10);
+            payload[5] = (byte)Mathf.Clamp(ledBrightness, 0, 255);
 
-            var payload = new byte[6];
-            payload[0] = (byte)Mathf.Clamp(command.Sound, 0, 1);
-            payload[1] = (byte)Mathf.Clamp(command.Volume, 0, 20);
-            payload[2] = (byte)Mathf.Clamp(command.MotorSpeedUnits, 0, 180);
-            payload[3] = (byte)Mathf.Clamp(command.LedRadius, 0, 10);
-            payload[4] = (byte)Mathf.Clamp(command.LedBrightness, 0, 255);
-            payload[5] = 0;
-
-            try
-            {
-                var endpoint = new IPEndPoint(IPAddress.Parse(robotIp), port);
-                controlClient.Send(payload, payload.Length, endpoint);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"VrRobotUdpBridge: failed to send Neto packet - {ex.Message}");
-            }
+            SendPacket(robotId, payload);
         }
 
-        public void SendSauronControl(string robotIp, int port, SauronCommand command)
+        public void SendSauronCommand(int robotId, int bottom, int top)
         {
-            if (controlClient == null)
-            {
-                Debug.LogWarning("VrRobotUdpBridge: control client not ready");
-                return;
-            }
+            if (!CanSend()) return;
 
-            if (emergencyStopActive)
-            {
-                Debug.LogWarning("VrRobotUdpBridge: Emergency stop active, blocking Sauron command");
-                return;
-            }
+            // manual_mode = -1 (0xFF as byte) tells hub "do not change manual mode"
+            byte[] payload = new byte[4];
+            payload[0] = CMD_SAURON_SET;
+            payload[1] = (byte)Mathf.Clamp(bottom, 0, 180);
+            payload[2] = (byte)Mathf.Clamp(top, 0, 180);
+            payload[3] = 0xFF; // -1 as signed byte = leave manual mode unchanged
 
-            var payload = new byte[6];
-            payload[0] = command.BottomAngle.HasValue ? (byte)Mathf.Clamp(command.BottomAngle.Value, 0, 180) : (byte)0;
-            payload[1] = command.TopAngle.HasValue ? (byte)Mathf.Clamp(command.TopAngle.Value, 0, 180) : (byte)0;
-            payload[2] = 0;
-            payload[3] = 0;
-            payload[4] = 0;
-            payload[5] = command.ManualMode.HasValue ? (byte)(command.ManualMode.Value ? 1 : 0) : (byte)255;
-
-            try
-            {
-                var endpoint = new IPEndPoint(IPAddress.Parse(robotIp), port);
-                controlClient.Send(payload, payload.Length, endpoint);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"VrRobotUdpBridge: failed to send Sauron packet - {ex.Message}");
-            }
-        }
-
-        public void ActivateEmergencyStop()
-        {
-            if (emergencyStopActive)
-            {
-                return;
-            }
-
-            emergencyStopActive = true;
-            SendSafeStateToAllRobots();
-            EnqueueMainThread(() => EmergencyStopActivated?.Invoke());
-            Debug.LogWarning("VrRobotUdpBridge: EMERGENCY STOP ACTIVATED");
-        }
-
-        public void DeactivateEmergencyStop()
-        {
-            if (!emergencyStopActive)
-            {
-                return;
-            }
-
-            emergencyStopActive = false;
-            EnqueueMainThread(() => EmergencyStopDeactivated?.Invoke());
-            Debug.Log("VrRobotUdpBridge: Emergency stop deactivated");
+            SendPacket(robotId, payload);
         }
 
         public void SendSafeStateToAllRobots()
         {
-            if (controlClient == null)
-            {
-                return;
-            }
+            if (_client == null) return;
 
-            // Send safe state to all Neto robots (110-112)
-            var netoSafeState = new NetoCommand
-            {
-                Sound = 0,
-                Volume = 0,
-                MotorSpeedUnits = 90, // Stop position
-                LedRadius = 0,
-                LedBrightness = 0
-            };
+            // Stop all Neto motors, silence LEDs
+            for (int id = ID_NETO1; id <= ID_NETO3; id++)
+                SendNetoCommand(id, sound: 0, volume: 0, speedUnits: 90,
+                                ledRadius: 0, ledBrightness: 0);
 
-            for (int i = 110; i <= 112; i++)
-            {
-                string ip = $"{networkBase}.{i}";
-                try
-                {
-                    var payload = new byte[6];
-                    payload[0] = 0;
-                    payload[1] = 0;
-                    payload[2] = 90;
-                    payload[3] = 0;
-                    payload[4] = 0;
-                    payload[5] = 0;
+            // Centre both Saurons
+            SendSauronCommand(ID_SAURON1, 90, 90);
+            SendSauronCommand(ID_SAURON2, 90, 90);
 
-                    var endpoint = new IPEndPoint(IPAddress.Parse(ip), robotUdpPort);
-                    controlClient.Send(payload, payload.Length, endpoint);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"VrRobotUdpBridge: Failed to send safe state to Neto {ip} - {ex.Message}");
-                }
-            }
-
-            // Send safe state to all Sauron robots (120-121)
-            var sauronSafeState = new SauronCommand
-            {
-                BottomAngle = 90, // Center position
-                TopAngle = 90,
-                ManualMode = false
-            };
-
-            for (int i = 120; i <= 121; i++)
-            {
-                string ip = $"{networkBase}.{i}";
-                try
-                {
-                    var payload = new byte[6];
-                    payload[0] = 90;
-                    payload[1] = 90;
-                    payload[2] = 0;
-                    payload[3] = 0;
-                    payload[4] = 0;
-                    payload[5] = 0; // Manual mode off
-
-                    var endpoint = new IPEndPoint(IPAddress.Parse(ip), robotUdpPort);
-                    controlClient.Send(payload, payload.Length, endpoint);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"VrRobotUdpBridge: Failed to send safe state to Sauron {ip} - {ex.Message}");
-                }
-            }
-
-            Debug.Log("VrRobotUdpBridge: Safe state sent to all robots");
+            Debug.Log("[Bridge] Safe state sent to all robots");
         }
 
-        public bool GetRobotConnectionStatus(string robotKey)
+        public void ActivateEmergencyStop()
         {
-            if (!trackConnectionHealth || !lastFeedbackTime.TryGetValue(robotKey, out float lastTime))
+            if (_emergencyStop) return;
+            _emergencyStop = true;
+            SendSafeStateToAllRobots();
+            EmergencyStopActivated?.Invoke();
+            Debug.LogWarning("[Bridge] EMERGENCY STOP ACTIVATED");
+        }
+
+        public void DeactivateEmergencyStop()
+        {
+            if (!_emergencyStop) return;
+            _emergencyStop = false;
+            DeactivateEmergencyStop();
+            Debug.Log("[Bridge] Emergency stop cleared");
+        }
+
+        // ── Internal helpers ─────────────────────────────────────────────────
+
+        private bool CanSend()
+        {
+            if (_client == null)
             {
+                Debug.LogWarning("[Bridge] Not started");
                 return false;
             }
-
-            return (Time.time - lastTime) < connectionTimeoutSeconds;
-        }
-
-        private static UdpClient CreateListener(int port)
-        {
-            var client = new UdpClient(port);
-            client.Client.ReceiveTimeout = 1000;
-            return client;
-        }
-
-        private async Task ReceiveFeedbackLoop(CancellationToken token)
-        {
-            await ReceiveLoop(token, feedbackListener, buffer =>
+            if (_emergencyStop)
             {
-                var text = Encoding.ASCII.GetString(buffer).Trim('\0', '\n', '\r', ' ');
-                if (string.IsNullOrEmpty(text))
-                {
-                    return;
-                }
-
-                var sensorEvent = RobotSensorEvent.Parse(text);
-                if (sensorEvent != null)
-                {
-                    // Update connection tracking
-                    if (trackConnectionHealth)
-                    {
-                        string robotKey = $"{sensorEvent.RobotType}:{sensorEvent.RobotNumber}";
-                        lastFeedbackTime[robotKey] = Time.time;
-                    }
-
-                    EnqueueMainThread(() => SensorEventReceived?.Invoke(sensorEvent));
-                }
-            });
+                Debug.LogWarning("[Bridge] Emergency stop active");
+                return false;
+            }
+            return true;
         }
 
-        private async Task MonitorConnectionHealth(CancellationToken token)
+        private void SendPacket(int robotId, byte[] payload)
         {
-            var knownRobots = new HashSet<string>();
-            var previousStatus = new Dictionary<string, bool>();
-
-            while (!token.IsCancellationRequested)
+            try
             {
-                try
-                {
-                    await Task.Delay(1000, token); // Check every second
-
-                    foreach (var kvp in lastFeedbackTime)
-                    {
-                        string robotKey = kvp.Key;
-                        knownRobots.Add(robotKey);
-
-                        bool wasConnected = previousStatus.TryGetValue(robotKey, out bool prev) && prev;
-                        bool isConnected = (Time.time - kvp.Value) < connectionTimeoutSeconds;
-
-                        if (wasConnected && !isConnected)
-                        {
-                            EnqueueMainThread(() => RobotConnectionLost?.Invoke(robotKey));
-                        }
-                        else if (!wasConnected && isConnected)
-                        {
-                            EnqueueMainThread(() => RobotConnectionRestored?.Invoke(robotKey));
-                        }
-
-                        previousStatus[robotKey] = isConnected;
-                    }
-                }
-                catch (TaskCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"VrRobotUdpBridge: connection monitor error - {ex.Message}");
-                }
+                byte[] packet = BuildPacket(robotId, payload);
+                _client.Send(packet, packet.Length, _hubEndpoint);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Bridge] Send failed: {ex.Message}");
             }
         }
 
-        private static async Task ReceiveLoop(CancellationToken token, UdpClient client, Action<byte[]> handler)
+        /// <summary>
+        /// Builds a protocol_v2 packet matching Python's Packet.encode():
+        /// magic(2) version(1) msgtype(1) seq(2 LE) robot_id(1) payload_len(2 LE) payload(N)
+        /// </summary>
+        private byte[] BuildPacket(int robotId, byte[] payload)
         {
-            IPEndPoint endpoint = new IPEndPoint(IPAddress.Any, 0);
+            int headerSize = 9;
+            byte[] packet = new byte[headerSize + payload.Length];
 
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    var result = await client.ReceiveAsync();
-                    handler(result.Buffer);
-                }
-                catch (ObjectDisposedException)
-                {
-                    break;
-                }
-                catch (SocketException)
-                {
-                    // Timeout or port closed; let the loop continue.
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"VrRobotUdpBridge: receive loop error - {ex.Message}");
-                }
-            }
-        }
+            // Magic "PR"
+            packet[0] = MAGIC[0];
+            packet[1] = MAGIC[1];
+            // Version
+            packet[2] = VERSION;
+            // MsgType: COMMAND = 4
+            packet[3] = MSG_COMMAND;
+            // Seq — little-endian uint16
+            packet[4] = (byte)(_seq & 0xFF);
+            packet[5] = (byte)((_seq >> 8) & 0xFF);
+            _seq = (ushort)((_seq + 1) & 0xFFFF);
+            // robot_id
+            packet[6] = (byte)robotId;
+            // payload_len — little-endian uint16
+            packet[7] = (byte)(payload.Length & 0xFF);
+            packet[8] = (byte)((payload.Length >> 8) & 0xFF);
+            // payload
+            Array.Copy(payload, 0, packet, headerSize, payload.Length);
 
-        private void EnqueueMainThread(Action action)
-        {
-            if (action != null)
-            {
-                mainThreadActions.Enqueue(action);
-            }
-        }
-
-        [Serializable]
-        public struct NetoCommand
-        {
-            public int Sound;
-            public int Volume;
-            public int MotorSpeedUnits;
-            public int LedRadius;
-            public int LedBrightness;
-        }
-
-        [Serializable]
-        public struct SauronCommand
-        {
-            public int? BottomAngle;
-            public int? TopAngle;
-            public bool? ManualMode;
-        }
-
-        public class RobotSensorEvent
-        {
-            public string RobotType { get; private set; }
-            public string RobotNumber { get; private set; }
-            public int PayloadValue { get; private set; }
-            public int SecondaryValue { get; private set; }
-            public string RawMessage { get; private set; }
-
-            public static RobotSensorEvent Parse(string raw)
-            {
-                var parts = raw.Split(':');
-                if (parts.Length < 3)
-                {
-                    return null;
-                }
-
-                if (!int.TryParse(parts[2], out var payload))
-                {
-                    return null;
-                }
-
-                int secondary = 0;
-                if (parts.Length > 3 && !string.IsNullOrEmpty(parts[3]))
-                {
-                    int.TryParse(parts[3].Trim('\0'), out secondary);
-                }
-
-                return new RobotSensorEvent
-                {
-                    RobotType = parts[0],
-                    RobotNumber = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : "?",
-                    PayloadValue = payload,
-                    SecondaryValue = secondary,
-                    RawMessage = raw
-                };
-            }
+            return packet;
         }
     }
 }
