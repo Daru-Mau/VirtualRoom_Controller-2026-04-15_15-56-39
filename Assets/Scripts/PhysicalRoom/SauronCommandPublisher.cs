@@ -15,7 +15,7 @@ public class SauronCommandPublisher : MonoBehaviour
 
     [Header("Robot Identity")]
     [Tooltip("Hub remaps top servo range per robot automatically")]
-    [SerializeField] private SauronRobotId robotId = SauronRobotId.Sauron1_IP120;
+    [SerializeField] public SauronRobotId robotId = SauronRobotId.Sauron1_IP120;
 
     [Header("Current State — read only")]
     [SerializeField, Range(0, 180)] private int bottomServoAngle = 90;

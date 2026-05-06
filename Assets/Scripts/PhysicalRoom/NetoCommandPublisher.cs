@@ -17,7 +17,7 @@ public class NetoCommandPublisher : MonoBehaviour
 
     [Header("Robot Identity")]
     [Tooltip("Must match hub registry. Neto1=IP.110, Neto2=IP.111, Neto3=IP.112")]
-    [SerializeField] private NetoRobotId robotId = NetoRobotId.Neto1_IP110;
+    [SerializeField] public NetoRobotId robotId = NetoRobotId.Neto1_IP110;
 
     [Header("Defaults")]
     [SerializeField, Range(0, 180)] private int defaultMotorSpeedUnits = 90;

@@ -111,5 +111,8 @@ public class PoseDetector : MonoBehaviour
 
         _prevLeftPos = leftController.position;
         _prevRightPos = rightController.position;
+
+        Debug.Log($"Pose: {CurrentPose} | L-dist: {leftDist:F2} R-dist: {rightDist:F2}");
+
     }
 }

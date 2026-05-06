@@ -1,4 +1,3 @@
-// RobotSelector.cs
 using UnityEngine;
 
 public class RobotSelector : MonoBehaviour
@@ -6,83 +5,138 @@ public class RobotSelector : MonoBehaviour
     public PoseDetector poseDetector;
     public Transform headset;
 
-    [Header("Neto Robots")]
-    public NetoCommandPublisher[] netoRobots;   // assign Neto_1_Rig, Neto_2_Rig, Neto_3_Rig
+    [Header("Robot Lists")]
+    public NetoCommandPublisher[] netoRobots;
+    public SauronCommandPublisher[] sauronRobots;
 
-    [Header("Sauron Robots")]
-    public SauronCommandPublisher[] sauronRobots; // assign Sauron_1, Sauron_2
+    [Header("Gesture Target")]
+    public SauronCommandPublisher gestureTargetSauron;
 
-    [Header("Special Gesture Target")]
-    public SauronCommandPublisher gestureTargetSauron; // e.g. Sauron_2
+    [Header("Selection")]
+    [Tooltip("Half-angle of the cone used to pick the robot you're pointing at")]
+    public float selectionConeAngle = 60f;
 
-    // Active selections — only one of these will be non-null at a time
     public NetoCommandPublisher ActiveNeto { get; private set; }
     public SauronCommandPublisher ActiveSauron { get; private set; }
 
     private NetoCommandPublisher _prevNeto;
     private SauronCommandPublisher _prevSauron;
 
+    // ─────────────────────────────────────────────────────────────────
+
     void Update()
     {
-        NetoCommandPublisher newNeto = null;
-        SauronCommandPublisher newSauron = null;
-
         switch (poseDetector.CurrentPose)
         {
-            case ControlPose.ChestMode:
-                // No specific robot — InputDispatcher broadcasts
-                break;
-
             case ControlPose.DirectionalLeft:
-                ResolveDirection(poseDetector.LeftHandDirection, out newNeto, out newSauron);
+                SelectNetoInDirection(poseDetector.LeftHandDirection);
+                ClearSauron();
                 break;
 
             case ControlPose.DirectionalRight:
-                ResolveDirection(poseDetector.RightHandDirection, out newNeto, out newSauron);
+                SelectNetoInDirection(poseDetector.RightHandDirection);
+                ClearSauron();
+                break;
+
+            case ControlPose.ChestMode:
+                // All Saurons active in chest mode — show all as selected
+                ClearNeto();
+                SetAllSauronsSelected();
                 break;
 
             case ControlPose.TwoHandGesture:
-                newSauron = gestureTargetSauron;
+                ClearNeto();
+                SetGestureSauron();
+                break;
+
+            case ControlPose.None:
+                ClearNeto();
+                ClearSauron();
                 break;
         }
 
-        // Fire selection change callbacks
-        if (newNeto != _prevNeto || newSauron != _prevSauron)
+        // Update indicators whenever selection changes
+        if (ActiveNeto != _prevNeto || ActiveSauron != _prevSauron)
         {
-            _prevNeto?.ResetToDefaults();          // safe state on deselect
-            _prevSauron?.CenterServos();
-
-            ActiveNeto = newNeto;
-            ActiveSauron = newSauron;
-            _prevNeto = newNeto;
-            _prevSauron = newSauron;
-
-            if (newNeto != null) Debug.Log($"[Selector] Active Neto: {newNeto.name}");
-            if (newSauron != null) Debug.Log($"[Selector] Active Sauron: {newSauron.name}");
+            RefreshIndicators();
+            _prevNeto = ActiveNeto;
+            _prevSauron = ActiveSauron;
         }
     }
 
-    void ResolveDirection(Vector3 direction,
-                          out NetoCommandPublisher bestNeto,
-                          out SauronCommandPublisher bestSauron)
-    {
-        Vector3 origin = headset.position + Vector3.up * -0.15f;
-        bestNeto = null;
-        bestSauron = null;
-        float bestAngle = 60f; // cone cutoff
+    // ── Selection Logic ──────────────────────────────────────────────
 
-        foreach (var r in netoRobots)
+    void SelectNetoInDirection(Vector3 direction)
+    {
+        NetoCommandPublisher best = null;
+        float bestDot = Mathf.Cos(selectionConeAngle * Mathf.Deg2Rad);
+
+        foreach (var neto in netoRobots)
         {
-            float angle = Vector3.Angle(direction,
-                (r.transform.position - origin).normalized);
-            if (angle < bestAngle) { bestAngle = angle; bestNeto = r; bestSauron = null; }
+            if (neto == null) continue;
+            Vector3 toRobot = (neto.transform.position - headset.position).normalized;
+            float dot = Vector3.Dot(direction, toRobot);
+            if (dot > bestDot) { bestDot = dot; best = neto; }
         }
 
-        foreach (var r in sauronRobots)
+        if (best != ActiveNeto)
         {
-            float angle = Vector3.Angle(direction,
-                (r.transform.position - origin).normalized);
-            if (angle < bestAngle) { bestAngle = angle; bestSauron = r; bestNeto = null; }
+            if (ActiveNeto != null) ActiveNeto.ResetToDefaults();
+            ActiveNeto = best;
+        }
+    }
+
+    void ClearNeto()
+    {
+        if (ActiveNeto != null) { ActiveNeto.ResetToDefaults(); ActiveNeto = null; }
+    }
+
+    void ClearSauron()
+    {
+        if (ActiveSauron != null) { ActiveSauron.CenterServos(); ActiveSauron = null; }
+    }
+
+    void SetAllSauronsSelected()
+    {
+        // In chest mode ActiveSauron isn't used (dispatcher drives both directly),
+        // but we still want the indicators to show selected on all Saurons.
+        ActiveSauron = null;
+    }
+
+    void SetGestureSauron()
+    {
+        ActiveSauron = gestureTargetSauron;
+    }
+
+    // ── Indicator Management ─────────────────────────────────────────
+
+    void RefreshIndicators()
+    {
+        // Neto indicators
+        foreach (var neto in netoRobots)
+        {
+            if (neto == null) continue;
+            var ind = neto.GetComponent<RobotVisualIndicator>();
+            if (ind == null) continue;
+
+            if (neto == ActiveNeto)
+                ind.SetState(RobotVisualIndicator.IndicatorState.Selected);
+            else
+                ind.SetState(RobotVisualIndicator.IndicatorState.Idle);
+        }
+
+        // Sauron indicators
+        foreach (var sauron in sauronRobots)
+        {
+            if (sauron == null) continue;
+            var ind = sauron.GetComponent<RobotVisualIndicator>();
+            if (ind == null) continue;
+
+            bool chestMode = poseDetector.CurrentPose == ControlPose.ChestMode;
+            bool isSelected = (sauron == ActiveSauron) || chestMode;
+            ind.SetState(isSelected
+                ? RobotVisualIndicator.IndicatorState.Selected
+                : RobotVisualIndicator.IndicatorState.Idle);
         }
     }
 }
