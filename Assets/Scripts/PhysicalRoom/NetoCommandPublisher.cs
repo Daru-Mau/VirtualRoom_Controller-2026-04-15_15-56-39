@@ -1,10 +1,8 @@
 using UnityEngine;
 using UnityEngine.Events;
-using PhysicalRoom.UnityBridge;
 
 public class NetoCommandPublisher : MonoBehaviour
 {
-    // Matches hub's _id_to_name exactly
     public enum NetoRobotId
     {
         Neto1_IP110 = 1,
@@ -35,6 +33,15 @@ public class NetoCommandPublisher : MonoBehaviour
     [Header("Diagnostics")]
     public UnityEvent onCommandSent;
 
+    // ── Public read access for visual drivers ────────────────────────────
+    /// <summary>
+    /// Current motor speed in servo units (0–180).
+    /// 90 = stopped, 0 = full pull (up), 180 = full release (down).
+    /// </summary>
+    public int CurrentMotorSpeedUnits => currentMotorSpeedUnits;
+
+    // ── Lifecycle ────────────────────────────────────────────────────────
+
     private void Awake()
     {
         if (bridge == null)
@@ -45,6 +52,8 @@ public class NetoCommandPublisher : MonoBehaviour
         currentLedBrightness = defaultLedBrightness;
         currentVolume = defaultVolume;
     }
+
+    // ── Public command API ───────────────────────────────────────────────
 
     public void SetState(bool sound, int volume, int motorSpeedUnits, int ledRadius, int ledBrightness)
     {
@@ -98,6 +107,8 @@ public class NetoCommandPublisher : MonoBehaviour
         currentVolume = 0;
         SendCommand();
     }
+
+    // ── Internal ─────────────────────────────────────────────────────────
 
     private void SendCommand()
     {

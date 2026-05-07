@@ -1,12 +1,11 @@
 using UnityEngine;
 using UnityEngine.Events;
-using PhysicalRoom.UnityBridge;
 
 public class SauronCommandPublisher : MonoBehaviour
 {
     public enum SauronRobotId
     {
-        Sauron1_IP120 = 4,   // top_servo_range (0,180) — full range
+        Sauron1_IP120 = 4,   // top_servo_range (0,180)
         Sauron2_IP121 = 5,   // top_servo_range (10,70) — hub remaps automatically
     }
 
@@ -24,11 +23,21 @@ public class SauronCommandPublisher : MonoBehaviour
     [Header("Diagnostics")]
     public UnityEvent onCommandSent;
 
+    // ── Public read access for visual drivers ────────────────────────────
+    /// <summary>Bottom servo (yaw). 90 = centre, 0 = full left, 180 = full right.</summary>
+    public int BottomServoAngle => bottomServoAngle;
+    /// <summary>Top servo (tilt/pitch). 90 = centre, 0 = one extreme, 180 = other.</summary>
+    public int TopServoAngle => topServoAngle;
+
+    // ── Lifecycle ────────────────────────────────────────────────────────
+
     private void Awake()
     {
         if (bridge == null)
             bridge = FindObjectOfType<VrRobotUdpBridge>();
     }
+
+    // ── Public command API ───────────────────────────────────────────────
 
     public void SetBothServos(int bottom, int top)
     {
@@ -67,6 +76,8 @@ public class SauronCommandPublisher : MonoBehaviour
         topServoAngle = 90;
         SendCommand();
     }
+
+    // ── Internal ─────────────────────────────────────────────────────────
 
     private void SendCommand()
     {
