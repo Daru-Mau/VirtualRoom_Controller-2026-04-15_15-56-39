@@ -31,7 +31,8 @@ public class RobotVisualIndicator : MonoBehaviour
     private MeshRenderer _renderer;
     private MaterialPropertyBlock _mpb;
     private IndicatorState _state = IndicatorState.Idle;
-    private float _baseScale;
+    private Vector3 _baseScale;
+    private static Mesh _cylinderMesh;
 
     // ─────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,6 @@ public class RobotVisualIndicator : MonoBehaviour
     {
         _ring = BuildRing();
         _mpb = new MaterialPropertyBlock();
-        _baseScale = ringRadius * 2f;
         Apply(IndicatorState.Idle);
     }
 
@@ -48,7 +48,7 @@ public class RobotVisualIndicator : MonoBehaviour
         if (_state == IndicatorState.Selected)
         {
             float pulse = 1f + Mathf.Sin(Time.time * pulseSpeed) * pulseAmplitude;
-            _ring.transform.localScale = Vector3.one * (_baseScale * pulse);
+            _ring.transform.localScale = _baseScale * pulse;
         }
     }
 
@@ -82,7 +82,7 @@ public class RobotVisualIndicator : MonoBehaviour
 
         // Reset scale when not selected
         if (state != IndicatorState.Selected)
-            _ring.transform.localScale = Vector3.one * _baseScale;
+            _ring.transform.localScale = _baseScale;
     }
 
     // Procedurally builds a torus-like ring from a cylinder scaled flat.
@@ -96,7 +96,13 @@ public class RobotVisualIndicator : MonoBehaviour
 
         // Use a flat cylinder as the ring base — good enough for a floor indicator
         var mf = go.AddComponent<MeshFilter>();
-        mf.sharedMesh = Resources.GetBuiltinResource<Mesh>("Cylinder.fbx");
+        if (_cylinderMesh == null)
+        {
+            var tempCylinder = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            _cylinderMesh = tempCylinder.GetComponent<MeshFilter>().sharedMesh;
+            Destroy(tempCylinder);
+        }
+        mf.sharedMesh = _cylinderMesh;
 
         _renderer = go.AddComponent<MeshRenderer>();
 
@@ -108,9 +114,8 @@ public class RobotVisualIndicator : MonoBehaviour
 
         // Scale: very flat cylinder becomes a disc, then we'll use thickness
         float h = ringThickness;
-        go.transform.localScale = new Vector3(ringRadius * 2f, h * 0.5f, ringRadius * 2f);
-
-        _baseScale = ringRadius * 2f;
+        _baseScale = new Vector3(ringRadius * 2f, h * 0.5f, ringRadius * 2f);
+        go.transform.localScale = _baseScale;
 
         return go;
     }

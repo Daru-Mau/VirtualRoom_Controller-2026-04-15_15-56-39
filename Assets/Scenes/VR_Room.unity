@@ -2207,8 +2207,8 @@ Transform:
   m_GameObject: {fileID: 1263683545}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 1.28, z: -4.88}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0.0088, y: 3.326, z: -4.88}
+  m_LocalScale: {x: 1.0017918, y: 1, z: 0.5908}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1758082989}
@@ -2313,8 +2313,8 @@ Transform:
   m_GameObject: {fileID: 1291414921}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 1.27, z: 4.9}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0.0005, y: 3.3138, z: 4.9}
+  m_LocalScale: {x: 1.0001, y: 1, z: 0.5912}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1758082989}
@@ -3605,7 +3605,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   poseDetector: {fileID: 2095526952}
-  headset: {fileID: 167552076}
   netoRobots:
   - {fileID: 280147222}
   - {fileID: 419619515}

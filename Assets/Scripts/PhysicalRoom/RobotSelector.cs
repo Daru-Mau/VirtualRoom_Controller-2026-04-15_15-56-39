@@ -3,7 +3,6 @@ using UnityEngine;
 public class RobotSelector : MonoBehaviour
 {
     public PoseDetector poseDetector;
-    public Transform headset;
 
     [Header("Robot Lists")]
     public NetoCommandPublisher[] netoRobots;
@@ -13,28 +12,56 @@ public class RobotSelector : MonoBehaviour
     public SauronCommandPublisher gestureTargetSauron;
 
     [Header("Selection")]
-    [Tooltip("Half-angle of the cone used to pick the robot you're pointing at")]
-    public float selectionConeAngle = 60f;
+    [Tooltip("Max distance along the ray to consider a Neto")]
+    public float selectionMaxDistance = 10f;
+    [Tooltip("Max distance from the ray to count as aligned")]
+    public float selectionRayRadius = 0.35f;
+    [Tooltip("Use physics sphere cast to select Netos by collider")]
+    public bool usePhysicsSelection = true;
+    public LayerMask selectionMask = ~0;
+    [Tooltip("Draw a debug ray from the active hand")]
+    public bool debugDrawRay = false;
+    public Color debugRayColor = new Color(0f, 1f, 1f, 1f);
+    public Color debugSphereColor = new Color(1f, 0.5f, 0f, 1f);
+    public float debugSphereRadius = 0.1f;
 
     public NetoCommandPublisher ActiveNeto { get; private set; }
     public SauronCommandPublisher ActiveSauron { get; private set; }
 
     private NetoCommandPublisher _prevNeto;
     private SauronCommandPublisher _prevSauron;
+    private bool _hasDebugPoint;
+    private Vector3 _debugPoint;
+    private Vector3 _debugRayOrigin;
+    private Vector3 _debugRayDirection;
 
     // ─────────────────────────────────────────────────────────────────
 
     void Update()
     {
+        if (debugDrawRay && poseDetector != null)
+        {
+            if (poseDetector.CurrentPose == ControlPose.DirectionalLeft && poseDetector.leftController != null)
+            {
+                Debug.DrawRay(poseDetector.leftController.position,
+                    poseDetector.leftController.forward * selectionMaxDistance, debugRayColor);
+            }
+            else if (poseDetector.CurrentPose == ControlPose.DirectionalRight && poseDetector.rightController != null)
+            {
+                Debug.DrawRay(poseDetector.rightController.position,
+                    poseDetector.rightController.forward * selectionMaxDistance, debugRayColor);
+            }
+        }
+
         switch (poseDetector.CurrentPose)
         {
             case ControlPose.DirectionalLeft:
-                SelectNetoInDirection(poseDetector.LeftHandDirection);
+                SelectNetoInDirection(poseDetector.leftController.position, poseDetector.leftController.forward);
                 ClearSauron();
                 break;
 
             case ControlPose.DirectionalRight:
-                SelectNetoInDirection(poseDetector.RightHandDirection);
+                SelectNetoInDirection(poseDetector.rightController.position, poseDetector.rightController.forward);
                 ClearSauron();
                 break;
 
@@ -66,23 +93,99 @@ public class RobotSelector : MonoBehaviour
 
     // ── Selection Logic ──────────────────────────────────────────────
 
-    void SelectNetoInDirection(Vector3 direction)
+    void SelectNetoInDirection(Vector3 origin, Vector3 direction)
     {
+        if (direction.sqrMagnitude < 0.0001f) return;
+        _debugRayOrigin = origin;
+        _debugRayDirection = direction.normalized;
+
+        if (usePhysicsSelection)
+        {
+            SelectNetoWithSphereCast(origin, direction.normalized);
+            return;
+        }
+
         NetoCommandPublisher best = null;
-        float bestDot = Mathf.Cos(selectionConeAngle * Mathf.Deg2Rad);
+        float bestAlongRay = float.PositiveInfinity;
+        float bestOffRay = float.PositiveInfinity;
+        Vector3 dir = direction.normalized;
+        Vector3 dirFlat = new Vector3(dir.x, 0f, dir.z);
+        if (dirFlat.sqrMagnitude < 0.0001f) return;
+        dirFlat.Normalize();
+        Vector3 originFlat = new Vector3(origin.x, 0f, origin.z);
+        _hasDebugPoint = false;
 
         foreach (var neto in netoRobots)
         {
             if (neto == null) continue;
-            Vector3 toRobot = (neto.transform.position - headset.position).normalized;
-            float dot = Vector3.Dot(direction, toRobot);
-            if (dot > bestDot) { bestDot = dot; best = neto; }
+            Vector3 robotPos = neto.transform.position;
+            Vector3 toRobot = new Vector3(robotPos.x, 0f, robotPos.z) - originFlat;
+            float alongRay = Vector3.Dot(dirFlat, toRobot);
+            if (alongRay <= 0f || alongRay > selectionMaxDistance) continue;
+
+            Vector3 closestPoint = originFlat + dirFlat * alongRay;
+            float offRay = Vector3.Distance(closestPoint, new Vector3(robotPos.x, 0f, robotPos.z));
+            if (offRay > selectionRayRadius) continue;
+
+            if (alongRay < bestAlongRay || (Mathf.Approximately(alongRay, bestAlongRay) && offRay < bestOffRay))
+            {
+                bestAlongRay = alongRay;
+                bestOffRay = offRay;
+                best = neto;
+                _debugPoint = new Vector3(closestPoint.x, origin.y, closestPoint.z);
+                _hasDebugPoint = true;
+            }
         }
 
         if (best != ActiveNeto)
         {
             if (ActiveNeto != null) ActiveNeto.ResetToDefaults();
             ActiveNeto = best;
+        }
+    }
+
+    void SelectNetoWithSphereCast(Vector3 origin, Vector3 direction)
+    {
+        _hasDebugPoint = false;
+        var hits = Physics.SphereCastAll(origin, selectionRayRadius, direction, selectionMaxDistance,
+            selectionMask, QueryTriggerInteraction.Ignore);
+        if (hits == null || hits.Length == 0) return;
+
+        float bestDistance = float.PositiveInfinity;
+        NetoCommandPublisher best = null;
+
+        foreach (var hit in hits)
+        {
+            if (hit.collider == null) continue;
+            var neto = hit.collider.GetComponentInParent<NetoCommandPublisher>();
+            if (neto == null) continue;
+
+            if (hit.distance < bestDistance)
+            {
+                bestDistance = hit.distance;
+                best = neto;
+                _debugPoint = hit.point;
+                _hasDebugPoint = true;
+            }
+        }
+
+        if (best != ActiveNeto)
+        {
+            if (ActiveNeto != null) ActiveNeto.ResetToDefaults();
+            ActiveNeto = best;
+        }
+    }
+
+    void OnDrawGizmos()
+    {
+        if (!debugDrawRay) return;
+        Gizmos.color = debugRayColor;
+        Gizmos.DrawRay(_debugRayOrigin, _debugRayDirection * selectionMaxDistance);
+
+        if (_hasDebugPoint)
+        {
+            Gizmos.color = debugSphereColor;
+            Gizmos.DrawSphere(_debugPoint, debugSphereRadius);
         }
     }
 

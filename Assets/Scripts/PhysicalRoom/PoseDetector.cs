@@ -1,4 +1,3 @@
-// PoseDetector.cs
 using UnityEngine;
 
 public enum ControlPose
@@ -13,20 +12,20 @@ public enum ControlPose
 public class PoseDetector : MonoBehaviour
 {
     [Header("References")]
-    public Transform headset;         // OVRCameraRig's CenterEyeAnchor
-    public Transform leftController;  // LeftHandAnchor
-    public Transform rightController; // RightHandAnchor
+    public Transform headset;
+    public Transform leftController;
+    public Transform rightController;
 
     [Header("Chest Zone")]
-    public float chestRadius = 0.35f;       // Distance from chest center to count as "near"
-    public float chestHeightOffset = -0.15f; // Offset below head to approximate chest
+    public float chestRadius = 0.35f;
+    public float chestHeightOffset = -0.15f;
 
     [Header("Extension Thresholds")]
-    public float extensionMinDistance = 0.5f; // How far from chest to count as "extended"
-    public float twoHandDownAngle = 30f;       // Max degrees from "pointing down" for the gesture
+    public float extensionMinDistance = 0.5f;
+    public float twoHandDownAngle = 30f;
 
     [Header("Two-Hand Gesture")]
-    public float twoHandMovementThreshold = 0.05f; // Movement delta to register gesture motion
+    public float twoHandMovementThreshold = 0.05f;
     public float twoHandGestureHoldTime = 0.4f;
 
     private Vector3 _prevLeftPos;
@@ -50,11 +49,10 @@ public class PoseDetector : MonoBehaviour
         bool leftExtended = leftDist > extensionMinDistance;
         bool rightExtended = rightDist > extensionMinDistance;
 
-        // Directions from chest outward to each hand (flattened for readability, keep Y for up/down)
         LeftHandDirection = (leftController.position - chestPos).normalized;
         RightHandDirection = (rightController.position - chestPos).normalized;
 
-        // --- Chest Mode: both hands close to chest ---
+        // ── Chest Mode: both hands close to chest ──
         if (leftNearChest && rightNearChest)
         {
             CurrentPose = ControlPose.ChestMode;
@@ -62,7 +60,7 @@ public class PoseDetector : MonoBehaviour
             return;
         }
 
-        // --- Two-Hand Gesture: both extended, pointing downward ---
+        // ── Two-Hand Gesture: both extended, pointing downward ──
         if (leftExtended && rightExtended)
         {
             bool leftPointsDown = Vector3.Angle(LeftHandDirection, Vector3.down) < twoHandDownAngle;
@@ -70,7 +68,6 @@ public class PoseDetector : MonoBehaviour
 
             if (leftPointsDown && rightPointsDown)
             {
-                // Track movement delta for gesture recognition
                 TwoHandMovementDelta = ((leftController.position - _prevLeftPos) +
                                         (rightController.position - _prevRightPos)) * 0.5f;
 
@@ -95,24 +92,16 @@ public class PoseDetector : MonoBehaviour
             _twoHandGestureTimer = 0f;
         }
 
-        // --- Directional: one hand extended ---
+        // ── Directional: one hand extended ──
         if (leftExtended && !rightExtended)
-        {
             CurrentPose = ControlPose.DirectionalLeft;
-        }
         else if (rightExtended && !leftExtended)
-        {
             CurrentPose = ControlPose.DirectionalRight;
-        }
         else
-        {
             CurrentPose = ControlPose.None;
-        }
 
         _prevLeftPos = leftController.position;
         _prevRightPos = rightController.position;
-
-        Debug.Log($"Pose: {CurrentPose} | L-dist: {leftDist:F2} R-dist: {rightDist:F2}");
-
+        // NOTE: no Debug.Log here — change-only logging is in PoseInputDispatcher
     }
 }
