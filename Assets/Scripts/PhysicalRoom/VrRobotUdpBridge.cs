@@ -22,7 +22,7 @@ public class VrRobotUdpBridge : MonoBehaviour
     [Header("Runtime")]
     [SerializeField] private bool autoStart = true;
     [SerializeField] private bool sendSafeStateOnStart = true;
-    [SerializeField] private bool sendHelloOnStart = true;
+    [SerializeField] private bool sendHelloOnStart = false;
 
     // Protocol constants
     private static readonly byte[] MAGIC = { (byte)'P', (byte)'R' };

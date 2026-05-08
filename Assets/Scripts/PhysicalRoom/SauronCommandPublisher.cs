@@ -20,6 +20,10 @@ public class SauronCommandPublisher : MonoBehaviour
     [SerializeField, Range(0, 180)] private int bottomServoAngle = 90;
     [SerializeField, Range(0, 180)] private int topServoAngle = 90;
 
+    // State caching — only send if changed
+    private int _lastSentBottom = 90;
+    private int _lastSentTop = 90;
+
     [Header("Diagnostics")]
     public UnityEvent onCommandSent;
 
@@ -81,8 +85,15 @@ public class SauronCommandPublisher : MonoBehaviour
 
     private void SendCommand()
     {
+        // Only send if state actually changed (deduplication)
+        if (bottomServoAngle == _lastSentBottom && topServoAngle == _lastSentTop)
+            return;
+
         if (bridge == null) return;
+
         bridge.SendSauronCommand((int)robotId, bottomServoAngle, topServoAngle);
+        _lastSentBottom = bottomServoAngle;
+        _lastSentTop = topServoAngle;
         onCommandSent?.Invoke();
     }
 }

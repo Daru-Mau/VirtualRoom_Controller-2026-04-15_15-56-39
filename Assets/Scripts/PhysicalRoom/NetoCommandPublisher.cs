@@ -30,6 +30,13 @@ public class NetoCommandPublisher : MonoBehaviour
     [SerializeField] private int currentLedBrightness;
     [SerializeField] private int currentVolume;
 
+    // State caching — only send if changed (deduplication)
+    private bool _lastSentSoundEnabled;
+    private int _lastSentMotorSpeedUnits = 90;
+    private int _lastSentLedRadius;
+    private int _lastSentLedBrightness;
+    private int _lastSentVolume;
+
     [Header("Diagnostics")]
     public UnityEvent onCommandSent;
 
@@ -112,7 +119,16 @@ public class NetoCommandPublisher : MonoBehaviour
 
     private void SendCommand()
     {
+        // Only send if state actually changed (deduplication)
+        if (soundEnabled == _lastSentSoundEnabled &&
+            currentMotorSpeedUnits == _lastSentMotorSpeedUnits &&
+            currentLedRadius == _lastSentLedRadius &&
+            currentLedBrightness == _lastSentLedBrightness &&
+            currentVolume == _lastSentVolume)
+            return;
+
         if (bridge == null) return;
+
         bridge.SendNetoCommand(
             (int)robotId,
             sound: soundEnabled ? 1 : 0,
@@ -121,6 +137,13 @@ public class NetoCommandPublisher : MonoBehaviour
             ledRadius: currentLedRadius,
             ledBrightness: currentLedBrightness
         );
+
+        _lastSentSoundEnabled = soundEnabled;
+        _lastSentMotorSpeedUnits = currentMotorSpeedUnits;
+        _lastSentLedRadius = currentLedRadius;
+        _lastSentLedBrightness = currentLedBrightness;
+        _lastSentVolume = currentVolume;
+
         onCommandSent?.Invoke();
     }
 }

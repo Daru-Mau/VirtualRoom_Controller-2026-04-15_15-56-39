@@ -22,6 +22,9 @@ public class HubTelemetryReceiver : MonoBehaviour
     [SerializeField] private bool autoStart = true;
     [SerializeField] private bool sendHelloOnStart = true;
 
+    [Header("Debug Logging")]
+    [SerializeField] private bool logBreatherTelemetry = true;
+
     private static readonly byte[] MAGIC = { (byte)'P', (byte)'R' };
     private const byte VERSION = 1;
     private const byte MSG_HELLO = 1;
@@ -36,6 +39,7 @@ public class HubTelemetryReceiver : MonoBehaviour
     private readonly ConcurrentQueue<Action> _mainThread = new();
 
     public bool IsRunning => _cts != null && !_cts.IsCancellationRequested;
+    public BreatherTelemetry LastBreatherTelemetry { get; private set; }
 
     public event Action<NetoTelemetry> NetoTelemetryReceived;
     public event Action<SauronTelemetry> SauronTelemetryReceived;
@@ -199,7 +203,16 @@ public class HubTelemetryReceiver : MonoBehaviour
                 }
                 else if (TryParseBreather(robotId, message, out var breather))
                 {
-                    _mainThread.Enqueue(() => BreatherTelemetryReceived?.Invoke(breather));
+                    _mainThread.Enqueue(() =>
+                    {
+                        LastBreatherTelemetry = breather;
+                        BreatherTelemetryReceived?.Invoke(breather);
+
+                        if (logBreatherTelemetry)
+                        {
+                            Debug.Log($"[BREATHER] robot={breather.RobotId} raw={breather.Raw} smoothed={breather.Smoothed} centered={breather.Centered} state={breather.State} level={breather.Level} seq={(breather.Seq.HasValue ? breather.Seq.Value.ToString() : "-")}");
+                        }
+                    });
                 }
             }
             catch (SocketException)
@@ -284,12 +297,28 @@ public class HubTelemetryReceiver : MonoBehaviour
 
         int micLevel;
         int dangerFlag;
-        if (!int.TryParse(parts[2], out micLevel) || !int.TryParse(parts[3], out dangerFlag))
+        int optionalFieldStartIndex;
+
+        // Try Format 1: N:robotId:micLevel:dangerFlag:...
+        // robotId is in parts[1], micLevel in parts[2], dangerFlag in parts[3]
+        if (int.TryParse(parts[1], out int parsedRobotId) &&
+            int.TryParse(parts[2], out micLevel) &&
+            int.TryParse(parts[3], out dangerFlag))
         {
-            if (parts.Length < 3 || !int.TryParse(parts[1], out micLevel) || !int.TryParse(parts[2], out dangerFlag))
-            {
-                return false;
-            }
+            robotId = parsedRobotId;
+            optionalFieldStartIndex = 4;
+        }
+        // Try Format 2: N:micLevel:dangerFlag:...
+        // micLevel is in parts[1], dangerFlag in parts[2]
+        else if (int.TryParse(parts[1], out micLevel) &&
+                 int.TryParse(parts[2], out dangerFlag))
+        {
+            // robotId comes from packet header; message doesn't contain it
+            optionalFieldStartIndex = 3;
+        }
+        else
+        {
+            return false;
         }
 
         float? positionMm = null;
@@ -297,16 +326,29 @@ public class HubTelemetryReceiver : MonoBehaviour
         int? temperature = null;
         int positionValid = 0;
 
-        if (parts.Length >= 7)
+        // Parse optional fields (positionMm, load, temperature, positionValid)
+        // based on which format was matched
+        if (parts.Length > optionalFieldStartIndex)
         {
-            if (float.TryParse(parts[4], out float pos)) positionMm = pos;
-            if (int.TryParse(parts[5], out int loadVal)) load = loadVal;
-            if (int.TryParse(parts[6], out int tempVal)) temperature = tempVal;
+            if (float.TryParse(parts[optionalFieldStartIndex], out float pos))
+                positionMm = pos;
         }
 
-        if (parts.Length >= 8)
+        if (parts.Length > optionalFieldStartIndex + 1)
         {
-            int.TryParse(parts[7], out positionValid);
+            if (int.TryParse(parts[optionalFieldStartIndex + 1], out int loadVal))
+                load = loadVal;
+        }
+
+        if (parts.Length > optionalFieldStartIndex + 2)
+        {
+            if (int.TryParse(parts[optionalFieldStartIndex + 2], out int tempVal))
+                temperature = tempVal;
+        }
+
+        if (parts.Length > optionalFieldStartIndex + 3)
+        {
+            int.TryParse(parts[optionalFieldStartIndex + 3], out positionValid);
         }
 
         telemetry = new NetoTelemetry
