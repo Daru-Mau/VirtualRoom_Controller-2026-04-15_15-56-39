@@ -24,6 +24,9 @@ public class HubTelemetryReceiver : MonoBehaviour
 
     [Header("Debug Logging")]
     [SerializeField] private bool logBreatherTelemetry = true;
+    [SerializeField] private bool logNetoTelemetry = true;      // ADD
+    [SerializeField] private bool logSauronTelemetry = true;    // ADD
+    [SerializeField] private bool logDeathtrapTelemetry = true; // ADD
 
     private static readonly byte[] MAGIC = { (byte)'P', (byte)'R' };
     private const byte VERSION = 1;
@@ -159,47 +162,78 @@ public class HubTelemetryReceiver : MonoBehaviour
 
     private void ReceiveLoop(CancellationToken token)
     {
+        /*         Debug.Log($"[HubTelemetryReceiver] Receive loop started on port {((IPEndPoint)_client.Client.LocalEndPoint).Port}");
+         */
         while (!token.IsCancellationRequested)
         {
             try
             {
                 IPEndPoint remote = new IPEndPoint(IPAddress.Any, 0);
                 byte[] data = _client.Receive(ref remote);
+
+                // Stage 1: did ANY bytes arrive?
+                /*                 Debug.Log($"[HubTelemetryReceiver] Raw packet received from {remote} — {data?.Length ?? 0} bytes: {(data != null ? BitConverter.ToString(data) : "null")}");
+                 */
                 if (data == null || data.Length < HEADER_SIZE)
                 {
+                    Debug.LogWarning($"[HubTelemetryReceiver] Packet too short ({data?.Length ?? 0} bytes, need {HEADER_SIZE})");
                     continue;
                 }
 
+                // Stage 2: does the header decode?
                 if (!TryDecodePacket(data, out byte msgType, out int robotId, out byte[] payload))
                 {
+                    Debug.LogWarning($"[HubTelemetryReceiver] Packet decode failed. Magic={data[0]:X2}{data[1]:X2} Version={data[2]} MsgType={data[3]}");
                     continue;
                 }
+
+                Debug.Log($"[HubTelemetryReceiver] Decoded — msgType={msgType} robotId={robotId} payloadLen={payload.Length}");
 
                 if (msgType != MSG_TELEMETRY)
                 {
+                    Debug.Log($"[HubTelemetryReceiver] Skipping msgType={msgType} (want {MSG_TELEMETRY})");
                     continue;
                 }
 
+                // Stage 3: what does the message string look like?
                 string message = Encoding.UTF8.GetString(payload)
                     .Replace("\0", string.Empty)
                     .Trim();
 
+                Debug.Log($"[HubTelemetryReceiver] Payload string: '{message}'");
+
                 if (string.IsNullOrWhiteSpace(message))
                 {
+                    Debug.LogWarning("[HubTelemetryReceiver] Empty payload after decode");
                     continue;
                 }
 
                 if (TryParseNeto(robotId, message, out var neto))
                 {
-                    _mainThread.Enqueue(() => NetoTelemetryReceived?.Invoke(neto));
+                    _mainThread.Enqueue(() =>
+                    {
+                        NetoTelemetryReceived?.Invoke(neto);
+                        if (logNetoTelemetry)
+                            Debug.Log($"[NETO] robot={neto.RobotId} mic={neto.MicLevel} danger={neto.DangerFlag} pos={neto.PositionMm?.ToString("F1") ?? "-"}mm load={neto.Load?.ToString() ?? "-"} temp={neto.Temperature?.ToString() ?? "-"}");
+                    });
                 }
                 else if (TryParseSauron(robotId, message, out var sauron))
                 {
-                    _mainThread.Enqueue(() => SauronTelemetryReceived?.Invoke(sauron));
+                    _mainThread.Enqueue(() =>
+                    {
+                        SauronTelemetryReceived?.Invoke(sauron);
+                        if (logSauronTelemetry)
+                            Debug.Log($"[SAURON] robot={sauron.RobotId} touched={sauron.Touched} dangerZone={sauron.DangerZone} marker={sauron.Marker}");
+                    });
                 }
                 else if (TryParseDeathtrap(robotId, message, out var deathtrap))
                 {
-                    _mainThread.Enqueue(() => DeathtrapTelemetryReceived?.Invoke(deathtrap));
+                    _mainThread.Enqueue(() =>
+                    {
+                        DeathtrapTelemetryReceived?.Invoke(deathtrap);
+                        if (logDeathtrapTelemetry)
+                            Debug.Log($"[DEATHTRAP] robot={deathtrap.RobotId} touch={deathtrap.TouchLevel} minDist={deathtrap.MinDistance:F2}");
+                    });
                 }
                 else if (TryParseBreather(robotId, message, out var breather))
                 {
@@ -207,29 +241,31 @@ public class HubTelemetryReceiver : MonoBehaviour
                     {
                         LastBreatherTelemetry = breather;
                         BreatherTelemetryReceived?.Invoke(breather);
-
                         if (logBreatherTelemetry)
-                        {
-                            Debug.Log($"[BREATHER] robot={breather.RobotId} raw={breather.Raw} smoothed={breather.Smoothed} centered={breather.Centered} state={breather.State} level={breather.Level} seq={(breather.Seq.HasValue ? breather.Seq.Value.ToString() : "-")}");
-                        }
+                            Debug.Log($"[BREATHER] robot={breather.RobotId} raw={breather.Raw} smoothed={breather.Smoothed} centered={breather.Centered} state={breather.State} level={breather.Level}% seq={breather.Seq}");
                     });
                 }
+                else
+                {
+                    Debug.LogWarning($"[HubTelemetryReceiver] No parser matched message: '{message}'");
+                }
             }
-            catch (SocketException)
+            catch (SocketException ex)
             {
-                // Timeout; keep looping.
+                // This fires every 500ms on timeout — log it once to confirm the loop is alive
+                Debug.Log($"[HubTelemetryReceiver] Socket timeout (loop alive): {ex.SocketErrorCode}");
             }
             catch (ObjectDisposedException)
             {
+                Debug.Log("[HubTelemetryReceiver] Socket disposed, exiting loop");
                 return;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Ignore malformed packets.
+                Debug.LogError($"[HubTelemetryReceiver] Unexpected exception: {ex.GetType().Name} — {ex.Message}");
             }
         }
     }
-
     private byte[] BuildPacket(byte msgType, int robotId, byte[] payload)
     {
         byte[] packet = new byte[HEADER_SIZE + payload.Length];

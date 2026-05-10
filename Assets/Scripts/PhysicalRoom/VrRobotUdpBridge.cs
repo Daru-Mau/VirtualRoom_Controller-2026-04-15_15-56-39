@@ -111,29 +111,14 @@ public class VrRobotUdpBridge : MonoBehaviour
     {
         if (!CanSend()) return;
 
-        byte[] payload = new byte[6];
-        payload[0] = CMD_NETO_SET;
-        payload[1] = (byte)Mathf.Clamp(sound, 0, 1);
-        payload[2] = (byte)Mathf.Clamp(volume, 0, 20);
-        payload[3] = (byte)Mathf.Clamp(speedUnits, 0, 180);
-        payload[4] = (byte)Mathf.Clamp(ledRadius, 0, 10);
-        payload[5] = (byte)Mathf.Clamp(ledBrightness, 0, 255);
-
-        SendPacket(robotId, payload);
+        SendPacket(robotId, BuildNetoPayload(sound, volume, speedUnits, ledRadius, ledBrightness));
     }
 
     public void SendSauronCommand(int robotId, int bottom, int top)
     {
         if (!CanSend()) return;
 
-        // manual_mode = -1 (0xFF as byte) tells hub "do not change manual mode"
-        byte[] payload = new byte[4];
-        payload[0] = CMD_SAURON_SET;
-        payload[1] = (byte)Mathf.Clamp(bottom, 0, 180);
-        payload[2] = (byte)Mathf.Clamp(top, 0, 180);
-        payload[3] = 0xFF; // -1 as signed byte = leave manual mode unchanged
-
-        SendPacket(robotId, payload);
+        SendPacket(robotId, BuildSauronPayload(bottom, top));
     }
 
     public void SendSafeStateToAllRobots()
@@ -156,9 +141,17 @@ public class VrRobotUdpBridge : MonoBehaviour
     {
         if (_emergencyStop) return;
         _emergencyStop = true;
-        SendSafeStateToAllRobots();
+        SendSafeStateToAllRobots_Unchecked();  // bypass CanSend guard
         EmergencyStopActivated?.Invoke();
-        Debug.LogWarning("[Bridge] EMERGENCY STOP ACTIVATED");
+    }
+
+    private void SendSafeStateToAllRobots_Unchecked()
+    {
+        if (_client == null) return;
+        for (int id = ID_NETO1; id <= ID_NETO3; id++)
+            SendPacket(id, BuildNetoPayload(0, 0, 90, 0, 0));
+        SendPacket(ID_SAURON1, BuildSauronPayload(90, 90));
+        SendPacket(ID_SAURON2, BuildSauronPayload(90, 90));
     }
 
     public void DeactivateEmergencyStop()
@@ -197,6 +190,29 @@ public class VrRobotUdpBridge : MonoBehaviour
         {
             Debug.LogError($"[Bridge] Send failed: {ex.Message}");
         }
+    }
+
+    private byte[] BuildNetoPayload(int sound, int volume, int speedUnits, int ledRadius, int ledBrightness)
+    {
+        byte[] payload = new byte[6];
+        payload[0] = CMD_NETO_SET;
+        payload[1] = (byte)Mathf.Clamp(sound, 0, 1);
+        payload[2] = (byte)Mathf.Clamp(volume, 0, 20);
+        payload[3] = (byte)Mathf.Clamp(speedUnits, 0, 180);
+        payload[4] = (byte)Mathf.Clamp(ledRadius, 0, 10);
+        payload[5] = (byte)Mathf.Clamp(ledBrightness, 0, 255);
+        return payload;
+    }
+
+    private byte[] BuildSauronPayload(int bottom, int top)
+    {
+        // manual_mode = -1 (0xFF as byte) tells hub "do not change manual mode"
+        byte[] payload = new byte[4];
+        payload[0] = CMD_SAURON_SET;
+        payload[1] = (byte)Mathf.Clamp(bottom, 0, 180);
+        payload[2] = (byte)Mathf.Clamp(top, 0, 180);
+        payload[3] = 0xFF; // leave manual mode unchanged
+        return payload;
     }
 
     private void SendHello()
