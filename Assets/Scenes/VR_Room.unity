@@ -318,7 +318,7 @@ Transform:
   m_GameObject: {fileID: 203568247}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.918, y: 0, z: 1.449}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -410,7 +410,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8dd1543e2e02cdd4c9d5804ab0d92ab0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  publisher: {fileID: 0}
+  publisher: {fileID: 253557402}
   yawPivot: {fileID: 0}
   tiltPivot: {fileID: 0}
   yawMaxDegrees: 90
@@ -513,7 +513,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2228c986c773dd4ea4956470e8f0e1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  publisher: {fileID: 0}
+  publisher: {fileID: 280147222}
   telemetryReceiver: {fileID: 0}
   handle: {fileID: 490454951}
   ropeVisual: {fileID: 1190177809}
@@ -659,7 +659,6 @@ GameObject:
   - component: {fileID: 419619515}
   - component: {fileID: 419619516}
   - component: {fileID: 419619517}
-  - component: {fileID: 419619518}
   m_Layer: 5
   m_Name: Neto_2_Rig
   m_TagString: Untagged
@@ -742,7 +741,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2228c986c773dd4ea4956470e8f0e1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  publisher: {fileID: 0}
+  publisher: {fileID: 419619515}
   telemetryReceiver: {fileID: 0}
   handle: {fileID: 1340624281}
   ropeVisual: {fileID: 1513563170}
@@ -752,27 +751,6 @@ MonoBehaviour:
   maxMoveSpeed: 1.2
   ropeBaseScaleY: 0
   latestMicLevel: 0
---- !u!114 &419619518
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 419619513}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b6a2f5045d081cf418d8f8fb9ce29eaa, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  hubIp: 192.168.137.1
-  hubPort: 5600
-  listenPort: 0
-  autoStart: 1
-  sendHelloOnStart: 1
-  logBreatherTelemetry: 1
-  logNetoTelemetry: 1
-  logSauronTelemetry: 1
-  logDeathtrapTelemetry: 1
 --- !u!1 &422706246
 GameObject:
   m_ObjectHideFlags: 0
@@ -1148,7 +1126,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2771135f5f373fb43863205751a194a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  telemetryReceiver: {fileID: 0}
+  telemetryReceiver: {fileID: 1879940531}
   roomCentre: {fileID: 203568248}
   unitsRoot: {fileID: 1576739679}
   targetRobotId: 7
@@ -1167,8 +1145,8 @@ Transform:
   m_GameObject: {fileID: 594494443}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.4, y: -4.6843, z: 1.1}
-  m_LocalScale: {x: 8.126266, y: 5.6150703, z: 7.155505}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 203568248}
@@ -1198,7 +1176,7 @@ MonoBehaviour:
   strandWander: 0.5
   centreClearanceRadius: 0.4
   ambientUnitCount: 300
-  bubbleRadius: 3
+  bubbleRadius: 5
   shellBias: 0.6
   segmentLength: 0.14
   segmentRadius: 0.007
@@ -1406,7 +1384,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8dd1543e2e02cdd4c9d5804ab0d92ab0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  publisher: {fileID: 0}
+  publisher: {fileID: 777780908}
   yawPivot: {fileID: 0}
   tiltPivot: {fileID: 0}
   yawMaxDegrees: 90
@@ -2635,37 +2613,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 109434732395451517, guid: 65847589f926b734d9eaed6e25f0046b, type: 3}
   m_PrefabInstance: {fileID: 691203171}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1758082988
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1758082989}
-  m_Layer: 0
-  m_Name: RoomStructure
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1758082989
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1758082988}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.6340327, y: -1.4057202, z: -1.2567121}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1803941885
 GameObject:
   m_ObjectHideFlags: 0
@@ -2894,7 +2841,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2228c986c773dd4ea4956470e8f0e1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  publisher: {fileID: 0}
+  publisher: {fileID: 1879865963}
   telemetryReceiver: {fileID: 0}
   handle: {fileID: 594455111}
   ropeVisual: {fileID: 1929969738}
@@ -2914,6 +2861,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1879940530}
   - component: {fileID: 1879940529}
+  - component: {fileID: 1879940531}
   m_Layer: 0
   m_Name: PhysicalRoomBridge
   m_TagString: Untagged
@@ -2937,7 +2885,7 @@ MonoBehaviour:
   hubPort: 5600
   autoStart: 1
   sendSafeStateOnStart: 1
-  sendHelloOnStart: 1
+  sendHelloOnStart: 0
 --- !u!4 &1879940530
 Transform:
   m_ObjectHideFlags: 0
@@ -2953,6 +2901,28 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1879940531
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1879940528}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6a2f5045d081cf418d8f8fb9ce29eaa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hubIp: 192.168.137.1
+  hubPort: 5600
+  listenPort: 0
+  autoStart: 1
+  sendHelloOnStart: 1
+  logBreatherTelemetry: 1
+  logNetoTelemetry: 1
+  logSauronTelemetry: 1
+  logDeathtrapTelemetry: 1
+  logPacketDecode: 0
 --- !u!1 &1929969737
 GameObject:
   m_ObjectHideFlags: 0
@@ -3126,7 +3096,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2025324527}
-  - component: {fileID: 2025324528}
   m_Layer: 0
   m_Name: SteamAudio
   m_TagString: Untagged
@@ -3143,26 +3112,12 @@ Transform:
   m_GameObject: {fileID: 2025324526}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -27.243113, y: -34.953796, z: 1.8155558}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2025324528
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2025324526}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b11066ff95bbf3344b868394742f7002, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  currentHRTF: 0
-  hrtfNames: []
 --- !u!1 &2065671020
 GameObject:
   m_ObjectHideFlags: 0
@@ -3672,14 +3627,13 @@ RectTransform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 283712841}
-  - {fileID: 817075156}
-  - {fileID: 1879940530}
-  - {fileID: 1758082989}
-  - {fileID: 1130653510}
-  - {fileID: 105670291}
   - {fileID: 1022758383}
   - {fileID: 2095526953}
-  - {fileID: 2128594537}
-  - {fileID: 594494447}
   - {fileID: 2025324527}
+  - {fileID: 1879940530}
+  - {fileID: 594494447}
+  - {fileID: 283712841}
+  - {fileID: 817075156}
+  - {fileID: 1130653510}
+  - {fileID: 2128594537}
+  - {fileID: 105670291}
