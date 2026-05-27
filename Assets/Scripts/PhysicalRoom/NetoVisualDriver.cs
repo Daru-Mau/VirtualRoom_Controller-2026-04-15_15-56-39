@@ -90,9 +90,6 @@ public class NetoVisualDriver : MonoBehaviour
         if (publisher == null || handle == null) return;
 
         MoveHandle();
-
-        if (ropeVisual != null && ropeAnchor != null)
-            StretchRope();
     }
 
     void OnDestroy()
@@ -122,33 +119,6 @@ public class NetoVisualDriver : MonoBehaviour
             _startLocalY + maxUpOffset
         );
         handle.localPosition = pos;
-    }
-
-    // ── Rope Visual Scaling ───────────────────────────────────────────────
-
-    /// <summary>
-    /// Stretches the RopeVisual capsule so it always spans anchor → handle.
-    /// The capsule's Y axis is assumed to point along the rope direction.
-    /// </summary>
-    void StretchRope()
-    {
-        Vector3 anchorWorld = ropeAnchor.position;
-        Vector3 handleWorld = handle.position;
-
-        float distance = Vector3.Distance(anchorWorld, handleWorld);
-
-        // Position rope at the midpoint between anchor and handle
-        ropeVisual.position = (anchorWorld + handleWorld) * 0.5f;
-
-        // Point rope from anchor toward handle
-        if (distance > 0.001f)
-            ropeVisual.up = (handleWorld - anchorWorld).normalized;
-
-        // Scale Y to cover the full distance.
-        // Unity's capsule is 2 units tall at scale 1, so divide distance by 2.
-        Vector3 scale = ropeVisual.localScale;
-        scale.y = distance * 0.5f;
-        ropeVisual.localScale = scale;
     }
 
     // ── Telemetry ───────────────────────────────────────────────────────

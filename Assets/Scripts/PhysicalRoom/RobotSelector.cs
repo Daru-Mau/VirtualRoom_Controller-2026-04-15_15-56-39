@@ -8,8 +8,8 @@ public class RobotSelector : MonoBehaviour
     public NetoCommandPublisher[] netoRobots;
     public SauronCommandPublisher[] sauronRobots;
 
-    [Header("Gesture Target")]
-    public SauronCommandPublisher gestureTargetSauron;
+    [Header("Deathtrap")]
+    public DeathTrapCommandPublisher deathtrapRobot;
 
     [Header("Selection")]
     [Tooltip("Max distance along the ray to consider a Neto")]
@@ -93,7 +93,7 @@ public class RobotSelector : MonoBehaviour
 
             case ControlPose.TwoHandGesture:
                 ClearNeto();
-                SetGestureSauron();
+                ClearSauron();
                 break;
 
             case ControlPose.None:
@@ -231,11 +231,6 @@ public class RobotSelector : MonoBehaviour
     void SetAllSauronsSelected()
     {
         ActiveSauron = null; // chest mode drives Saurons directly
-    }
-
-    void SetGestureSauron()
-    {
-        ActiveSauron = gestureTargetSauron;
     }
 
     // ── Indicator Management ─────────────────────────────────────────────────

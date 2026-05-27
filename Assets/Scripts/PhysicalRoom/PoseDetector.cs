@@ -3,10 +3,10 @@ using UnityEngine;
 public enum ControlPose
 {
     None,
-    ChestMode,        // Both hands near chest → universal control set
-    DirectionalLeft,  // Left hand extended → control robot in that direction
-    DirectionalRight, // Right hand extended → control robot in that direction
-    TwoHandGesture    // Both hands extended down + movement → special robot
+    ChestMode,
+    DirectionalLeft,
+    DirectionalRight,
+    TwoHandGesture
 }
 
 public class PoseDetector : MonoBehaviour
@@ -22,20 +22,14 @@ public class PoseDetector : MonoBehaviour
 
     [Header("Extension Thresholds")]
     public float extensionMinDistance = 0.5f;
-    public float twoHandDownAngle = 30f;
 
-    [Header("Two-Hand Gesture")]
-    public float twoHandMovementThreshold = 0.05f;
-    public float twoHandGestureHoldTime = 0.4f;
-
-    private Vector3 _prevLeftPos;
-    private Vector3 _prevRightPos;
-    private float _twoHandGestureTimer;
+    [Header("Deathtrap Gesture")]
+    [Tooltip("Max distance between hands to trigger Deathtrap mode.")]
+    public float deathtrapHandProximity = 0.3f;
+    [Tooltip("Max angle from palms-down orientation.")]
+    public float deathtrapPalmDownAngle = 40f;
 
     public ControlPose CurrentPose { get; private set; } = ControlPose.None;
-    public Vector3 LeftHandDirection { get; private set; }
-    public Vector3 RightHandDirection { get; private set; }
-    public Vector3 TwoHandMovementDelta { get; private set; }
 
     void Update()
     {
@@ -49,59 +43,34 @@ public class PoseDetector : MonoBehaviour
         bool leftExtended = leftDist > extensionMinDistance;
         bool rightExtended = rightDist > extensionMinDistance;
 
-        LeftHandDirection = (leftController.position - chestPos).normalized;
-        RightHandDirection = (rightController.position - chestPos).normalized;
-
-        // ── Chest Mode: both hands close to chest ──
+        // ── Chest Mode ──
         if (leftNearChest && rightNearChest)
         {
             CurrentPose = ControlPose.ChestMode;
-            _twoHandGestureTimer = 0f;
             return;
         }
 
-        // ── Two-Hand Gesture: both extended, pointing downward ──
+        // ── Deathtrap: both extended + close together + palms down ──
         if (leftExtended && rightExtended)
         {
-            bool leftPointsDown = Vector3.Angle(LeftHandDirection, Vector3.down) < twoHandDownAngle;
-            bool rightPointsDown = Vector3.Angle(RightHandDirection, Vector3.down) < twoHandDownAngle;
+            float handsDist = Vector3.Distance(leftController.position, rightController.position);
+            bool handsClose = handsDist < deathtrapHandProximity;
+            bool leftPalmDown = Vector3.Angle(leftController.up, Vector3.down) < deathtrapPalmDownAngle;
+            bool rightPalmDown = Vector3.Angle(rightController.up, Vector3.down) < deathtrapPalmDownAngle;
 
-            if (leftPointsDown && rightPointsDown)
+            if (handsClose && leftPalmDown && rightPalmDown)
             {
-                TwoHandMovementDelta = ((leftController.position - _prevLeftPos) +
-                                        (rightController.position - _prevRightPos)) * 0.5f;
-
-                bool isMoving = TwoHandMovementDelta.magnitude > twoHandMovementThreshold;
-                if (isMoving) _twoHandGestureTimer += Time.deltaTime;
-
-                if (_twoHandGestureTimer >= twoHandGestureHoldTime)
-                {
-                    CurrentPose = ControlPose.TwoHandGesture;
-                    _prevLeftPos = leftController.position;
-                    _prevRightPos = rightController.position;
-                    return;
-                }
-            }
-            else
-            {
-                _twoHandGestureTimer = 0f;
+                CurrentPose = ControlPose.TwoHandGesture;
+                return;
             }
         }
-        else
-        {
-            _twoHandGestureTimer = 0f;
-        }
 
-        // ── Directional: one hand extended ──
+        // ── Directional ──
         if (leftExtended && !rightExtended)
             CurrentPose = ControlPose.DirectionalLeft;
         else if (rightExtended && !leftExtended)
             CurrentPose = ControlPose.DirectionalRight;
         else
             CurrentPose = ControlPose.None;
-
-        _prevLeftPos = leftController.position;
-        _prevRightPos = rightController.position;
-        // NOTE: no Debug.Log here — change-only logging is in PoseInputDispatcher
     }
 }

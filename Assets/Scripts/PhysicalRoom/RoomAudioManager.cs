@@ -1,96 +1,106 @@
 using UnityEngine;
-using UnityEngine.Audio;
 
 /// <summary>
 /// Central spatial audio manager for the breathing room.
 ///
-/// Subscribes to HubTelemetryReceiver events for all robots and drives
-/// their AudioSource layers to reflect biological / nervous-system states
-/// rather than mechanical operation.
+/// Drives AudioSources from HubTelemetryReceiver events, mapping
+/// robot telemetry to state-driven or continuous audio.
 ///
-/// ── Setup ─────────────────────────────────────────────────────────────────
-/// 1. Place this component on your AudioManager GameObject.
-/// 2. Assign the HubTelemetryReceiver reference.
-/// 3. Expand each robot audio group in the Inspector and assign:
-///    - The robot's Transform (for 3D positioning)
-///    - One AudioSource per layer (create child GameObjects on each robot)
-///    - AudioClips for each layer
-/// 4. Assign a BreatherTelemetryReceiver if using direct UDP for the breather.
+/// ── Hierarchy to create ──────────────────────────────────────────────
 ///
-/// ── AudioSource settings reminder ────────────────────────────────────────
-/// Every AudioSource used here:
+///   SteamAudio (or any manager GameObject)
+///   ├─ PadSource (non-spatialized Mycelium ambience)
+///   │   AudioSource: Spatial Blend = 0, Play On Awake = false, Loop = true
+///   │   → dragged into RoomAudioManager.ambience.padSource
+///   │
+///   BreathingRoom (the mycelium structure)
+///   ├─ DroneSource
+///   │   AudioSource: Spatial Blend = 1, Spatialize = true, Loop = true
+///   │   → dragged into RoomAudioManager.breather.droneSource
+///   ├─ TextureSource
+///   │   AudioSource: Spatial Blend = 1, Spatialize = true, Loop = true
+///   │   → dragged into RoomAudioManager.breather.textureSource
+///   └─ ResonanceSource
+///       AudioSource: Spatial Blend = 1, Spatialize = true, Loop = false
+///       → dragged into RoomAudioManager.breather.resonanceSource
+///       AudioClip → dragged into RoomAudioManager.breather.resonanceClip
+///
+///   Neto_1_Rig
+///   └─ NetoSound
+///       AudioSource: Spatial Blend = 1, Spatialize = true, Loop = false
+///       → dragged into RoomAudioManager.netos[?].source
+///       Clips assigned in inspector per state
+///
+///   Sauron_1
+///   ├─ ShimmerSource
+///   │   AudioSource: Spatial Blend = 1, Spatialize = true, Loop = true
+///   │   → dragged into RoomAudioManager.saurons[?].shimmerSource
+///   └─ TouchSource
+///       AudioSource: Spatial Blend = 1, Spatialize = true, Loop = false
+///       → dragged into RoomAudioManager.saurons[?].touchSource
+///       AudioClip → dragged into RoomAudioManager.saurons[?].touchClip
+///
+///   Deathtrap
+///   ├─ PulseSource
+///   │   AudioSource: Spatial Blend = 1, Spatialize = true, Loop = true
+///   │   → dragged into RoomAudioManager.deathtrap.pulseSource
+///   └─ ImpactSource
+///       AudioSource: Spatial Blend = 1, Spatialize = true, Loop = false
+///       → dragged into RoomAudioManager.deathtrap.impactSource
+///       AudioClip → dragged into RoomAudioManager.deathtrap.impactClip
+///
+/// ── AudioSource settings reminder ────────────────────────────────────
+/// Every 3D AudioSource used here:
 ///   Spatial Blend  = 1.0
-///   Spatialize     = true  (requires Meta XR Audio or Steam Audio plugin)
+///   Spatialize     = true  (requires Steam Audio plugin)
 ///   Rolloff        = Logarithmic
 ///   Doppler Level  = 0
 ///   Play On Awake  = false (this script manages playback)
 /// </summary>
 public class RoomAudioManager : MonoBehaviour
 {
-    // ── References ────────────────────────────────────────────────────────
-
     [Header("Telemetry")]
     [SerializeField] private HubTelemetryReceiver hubReceiver;
 
     [Header("Global")]
-    [Tooltip("Optional mixer for master volume / effects routing.")]
-    [SerializeField] private AudioMixer mixer;
-
-    [Tooltip("Low-pass filter speed for all level smoothing. " +
-             "Lower = more lag but smoother transitions.")]
     [SerializeField] private float globalSmoothSpeed = 3f;
 
-    // ── Per-robot audio groups ─────────────────────────────────────────────
-
-    [Header("Breather Audio")]
+    [Header("Breather — the mycelium room's breathing")]
+    [Tooltip("Drone = deep low hum of the structure, pitch follows inhale/exhale")]
     [SerializeField] private BreatherAudio breather;
 
-    [Header("Sauron Audio (one entry per Sauron robot)")]
-    [SerializeField] private SauronAudio[] saurons;
-
-    [Header("Neto Audio (one entry per Neto robot)")]
+    [Header("Neto — one entry per robot")]
     [SerializeField] private NetoAudio[] netos;
 
-    [Header("Deathtrap Audio")]
+    [Header("Sauron — one entry per robot")]
+    [SerializeField] private SauronAudio[] saurons;
+
+    [Header("Deathtrap")]
     [SerializeField] private DeathtrapAudio deathtrap;
 
-    [Header("Mycelium Ambience")]
+    [Header("Mycelium Ambience — non-spatialized room pad")]
     [SerializeField] private MyceliumAmbience ambience;
 
-    // ── Private state ──────────────────────────────────────────────────────
+    [Header("Neto State Threshold")]
+    [SerializeField, Range(0, 255)] private int micThreshold = 30;
 
-    private float _breathLevel;       // smoothed 0–1
-    private int _breathState;       // 0 hold, 1 inhale, 2 exhale
+    // ── Breather state ────────────────────────────────────────────────
 
-    // ─────────────────────────────────────────────────────────────────────
+    private float _breathLevel;
+    private int _breathState;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────
 
     private void Start()
     {
         if (hubReceiver != null)
         {
-            hubReceiver.BreatherTelemetryReceived += OnHubBreather;
-            hubReceiver.SauronTelemetryReceived += OnSauron;
+            hubReceiver.BreatherTelemetryReceived += OnBreather;
             hubReceiver.NetoTelemetryReceived += OnNeto;
+            hubReceiver.SauronTelemetryReceived += OnSauron;
             hubReceiver.DeathtrapTelemetryReceived += OnDeathtrap;
         }
 
-        StartAllLoops();
-    }
-
-    private void OnDestroy()
-    {
-        if (hubReceiver != null)
-        {
-            hubReceiver.BreatherTelemetryReceived -= OnHubBreather;
-            hubReceiver.SauronTelemetryReceived -= OnSauron;
-            hubReceiver.NetoTelemetryReceived -= OnNeto;
-            hubReceiver.DeathtrapTelemetryReceived -= OnDeathtrap;
-        }
-
-    }
-
-    private void StartAllLoops()
-    {
         PlayLoop(breather.droneSource);
         PlayLoop(breather.textureSource);
         PlayLoop(ambience.padSource);
@@ -98,104 +108,66 @@ public class RoomAudioManager : MonoBehaviour
 
         foreach (var s in saurons)
             PlayLoop(s.shimmerSource);
-
-        foreach (var n in netos)
-            PlayLoop(n.tensionSource);
     }
 
-    // ── Update ────────────────────────────────────────────────────────────
+    private void OnDestroy()
+    {
+        if (hubReceiver != null)
+        {
+            hubReceiver.BreatherTelemetryReceived -= OnBreather;
+            hubReceiver.NetoTelemetryReceived -= OnNeto;
+            hubReceiver.SauronTelemetryReceived -= OnSauron;
+            hubReceiver.DeathtrapTelemetryReceived -= OnDeathtrap;
+        }
+    }
 
     private void Update()
     {
-        UpdateBreatherAudio();
-        UpdateAmbienceAudio();
+        UpdateBreather();
+        UpdateAmbience();
     }
 
-    // ── Breather ──────────────────────────────────────────────────────────
+    // ── Breather ──────────────────────────────────────────────────────
+    // The mycelium room breathes as one organism.
+    //   Drone    → continuous low hum of the structure
+    //   Texture  → airy surface rustling of the capsules
+    //   Resonance → deep pulse at peak inhale
 
-    private void OnHubBreather(HubTelemetryReceiver.BreatherTelemetry t)
+    private void OnBreather(HubTelemetryReceiver.BreatherTelemetry t)
     {
         _breathState = t.State;
-        _breathLevel = Mathf.Lerp(_breathLevel, t.Level / 100f,
-                                  Time.deltaTime * globalSmoothSpeed);
+        _breathLevel = Mathf.Lerp(_breathLevel, t.Level / 100f, Time.deltaTime * globalSmoothSpeed);
     }
 
-    private void OnDirectBreather(HubTelemetryReceiver.BreatherTelemetry t)
-    {
-        _breathState = (int)t.State;
-        _breathLevel = Mathf.Lerp(_breathLevel, t.Level / 100f,
-                                  Time.deltaTime * globalSmoothSpeed);
-    }
-
-    private void UpdateBreatherAudio()
+    private void UpdateBreather()
     {
         if (breather.droneSource == null) return;
 
-        // Pitch: rises on inhale, falls on exhale, neutral on hold
         float pitchTarget = _breathState switch
         {
-            1 => Mathf.Lerp(1f, 1.08f, _breathLevel),  // inhale
-            2 => Mathf.Lerp(0.95f, 1f, _breathLevel),  // exhale
-            _ => 1f                                         // hold
+            1 => Mathf.Lerp(1f, 1.08f, _breathLevel),
+            2 => Mathf.Lerp(0.95f, 1f, _breathLevel),
+            _ => 1f
         };
 
         breather.droneSource.pitch = Mathf.Lerp(
-            breather.droneSource.pitch, pitchTarget,
-            Time.deltaTime * globalSmoothSpeed
-        );
+            breather.droneSource.pitch, pitchTarget, Time.deltaTime * globalSmoothSpeed);
 
-        // Breath texture volume scales with level
         if (breather.textureSource != null)
             breather.textureSource.volume = _breathLevel * 0.45f;
 
-        // Resonance bloom: a one-shot that fires when inhale peaks above threshold
         if (_breathState == 1 && _breathLevel > 0.75f)
             TriggerOneShot(breather.resonanceSource, breather.resonanceClip, 0.3f);
     }
 
-    // ── Sauron ────────────────────────────────────────────────────────────
-
-    private void OnSauron(HubTelemetryReceiver.SauronTelemetry t)
-    {
-        // Find matching sauron entry by robot ID
-        foreach (var s in saurons)
-        {
-            if (s.robotId != t.RobotId) continue;
-
-            // Pitch follows pan angle (0–180 mapped to pitch range)
-            // Marker 'S' = Sauron, 'H' = Head variant — both handled
-            float normAngle = (t.Touched > 0)
-                ? 1f
-                : Mathf.Clamp01((float)t.DangerZone / 100f);
-
-            if (s.shimmerSource != null)
-            {
-                s.shimmerSource.pitch = Mathf.Lerp(0.9f, 1.15f, normAngle);
-                s.shimmerSource.volume = Mathf.Lerp(0.02f, 0.12f, normAngle);
-            }
-
-            // Touch event → bell strike one-shot
-            if (t.Touched > 0)
-                TriggerOneShot(s.touchSource, s.touchClip, 0.5f);
-
-            // Danger zone → add dissonance via pitch of second shimmer layer
-            if (s.dangerShimmerSource != null)
-            {
-                float dissonance = t.DangerZone > 0 ? 0.08f : 0f;
-                s.dangerShimmerSource.volume = Mathf.Lerp(
-                    s.dangerShimmerSource.volume, t.DangerZone > 0 ? 0.1f : 0f,
-                    Time.deltaTime * globalSmoothSpeed
-                );
-                s.dangerShimmerSource.pitch = s.shimmerSource != null
-                    ? s.shimmerSource.pitch + dissonance
-                    : 1f + dissonance;
-            }
-
-            break;
-        }
-    }
-
-    // ── Neto ──────────────────────────────────────────────────────────────
+    // ── Neto ──────────────────────────────────────────────────────────
+    // 4 states derived from DangerFlag + MicLevel:
+    //   Idle   = DangerFlag=0, MicLevel ≤ threshold
+    //   Alert  = DangerFlag=0, MicLevel > threshold
+    //   Danger = DangerFlag=1, MicLevel ≤ threshold
+    //   Shriek = DangerFlag=1, MicLevel > threshold
+    //
+    // Each robot has 1 AudioSource. Clip swaps on state change.
 
     private void OnNeto(HubTelemetryReceiver.NetoTelemetry t)
     {
@@ -203,67 +175,84 @@ public class RoomAudioManager : MonoBehaviour
         {
             if (n.robotId != t.RobotId) continue;
 
-            // Mic level in physical room → sympathetic resonance in VR
-            float micNorm = Mathf.Clamp01(t.MicLevel / 255f);
-            if (micNorm > 0.6f)
-                TriggerOneShot(n.sympathySource, n.sympathyClip,
-                               micNorm * 0.4f);
-
-            // Danger flag → tighten the tension source
-            if (n.tensionSource != null)
+            NetoAudio.State newState = (t.DangerFlag > 0, t.MicLevel > micThreshold) switch
             {
-                n.tensionSource.volume = Mathf.Lerp(
-                    n.tensionSource.volume,
-                    n.dangerFlag ? 0.35f : 0.08f,
-                    Time.deltaTime * globalSmoothSpeed
-                );
-                n.dangerFlag = t.DangerFlag > 0;
+                (false, false) => NetoAudio.State.Idle,
+                (false, true)  => NetoAudio.State.Alert,
+                (true,  false) => NetoAudio.State.Danger,
+                (true,  true)  => NetoAudio.State.Shriek,
+            };
+
+            if (!n.hasState || newState != n.currentState)
+            {
+                n.hasState = true;
+                n.currentState = newState;
+                PlayClip(n.source, n.StateClip(newState));
             }
 
             break;
         }
     }
 
-    // ── Deathtrap ─────────────────────────────────────────────────────────
+    // ── Sauron ────────────────────────────────────────────────────────
+    // Continuous shimmer loop, pitch/volume follow attention.
+    // Touch → one-shot bell strike.
+
+    private void OnSauron(HubTelemetryReceiver.SauronTelemetry t)
+    {
+        foreach (var s in saurons)
+        {
+            if (s.robotId != t.RobotId) continue;
+
+            float intensity = t.Touched > 0
+                ? 1f
+                : Mathf.Clamp01(t.DangerZone / 100f);
+
+            if (s.shimmerSource != null)
+            {
+                s.shimmerSource.pitch = Mathf.Lerp(0.9f, 1.15f, intensity);
+                s.shimmerSource.volume = Mathf.Lerp(0.02f, 0.12f, intensity);
+            }
+
+            if (t.Touched > 0)
+                TriggerOneShot(s.touchSource, s.touchClip, 0.5f);
+
+            break;
+        }
+    }
+
+    // ── Deathtrap ─────────────────────────────────────────────────────
+    // Pulse loop: closer = louder + faster.
+    // Impact one-shot on touch.
 
     private void OnDeathtrap(HubTelemetryReceiver.DeathtrapTelemetry t)
     {
         if (deathtrap.pulseSource == null) return;
 
-        // Proximity: MinDistance in metres — closer = louder, faster pulse
         float proximity = 1f - Mathf.Clamp01(t.MinDistance / deathtrap.maxDistance);
 
-        // Pulse rate: maps proximity to pitch (pulse frequency)
-        // At proximity 0 → silence. At proximity 1 → fast low pulse.
         deathtrap.pulseSource.volume = proximity * 0.5f;
         deathtrap.pulseSource.pitch = Mathf.Lerp(0.5f, 1.4f, proximity);
 
-        // Touch event → pressure impact one-shot
         if (t.TouchLevel > 0)
-            TriggerOneShot(deathtrap.touchImpactSource, deathtrap.touchImpactClip,
+            TriggerOneShot(deathtrap.impactSource, deathtrap.impactClip,
                            Mathf.Clamp01(t.TouchLevel / 100f) * 0.6f);
     }
 
-    // ── Mycelium ambience ─────────────────────────────────────────────────
+    // ── Mycelium ambience ─────────────────────────────────────────────
 
-    private void UpdateAmbienceAudio()
+    private void UpdateAmbience()
     {
         if (ambience.padSource == null) return;
 
-        // Pad subtly brightens on inhale via pitch micro-shift
         float pitchNudge = _breathState == 1 ? _breathLevel * 0.015f : 0f;
         ambience.padSource.pitch = Mathf.Lerp(
             ambience.padSource.pitch, 1f + pitchNudge,
-            Time.deltaTime * (globalSmoothSpeed * 0.3f)   // very slow, geological
-        );
+            Time.deltaTime * (globalSmoothSpeed * 0.3f));
     }
 
-    // ── Utility ───────────────────────────────────────────────────────────
+    // ── Utility ───────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Plays a one-shot clip on a source only if it isn't already playing,
-    /// preventing rapid-fire retriggering.
-    /// </summary>
     private static void TriggerOneShot(AudioSource source, AudioClip clip, float volume)
     {
         if (source == null || clip == null || source.isPlaying) return;
@@ -276,80 +265,105 @@ public class RoomAudioManager : MonoBehaviour
         source.loop = true;
         source.Play();
     }
+
+    private static void PlayClip(AudioSource source, AudioClip clip)
+    {
+        if (source == null || clip == null) return;
+        if (source.isPlaying) source.Stop();
+        source.clip = clip;
+        source.Play();
+    }
 }
 
-// ── Data structures ───────────────────────────────────────────────────────
+// ── Data structures ───────────────────────────────────────────────────
 
 [System.Serializable]
 public class BreatherAudio
 {
-    [Tooltip("Continuous low drone, pitched by breath state.")]
+    [Tooltip("Deep continuous hum of the mycelium structure. " +
+             "Pitch rises on inhale, falls on exhale. " +
+             "Place on the BreathingRoom GameObject.")]
     public AudioSource droneSource;
 
-    [Tooltip("Breath texture layer — filtered air sound. Volume follows Level.")]
+    [Tooltip("Airy surface rustling of the breathing capsules. " +
+             "Volume follows breath level. " +
+             "Place on the BreathingRoom GameObject.")]
     public AudioSource textureSource;
 
-    [Tooltip("One-shot resonance bloom source. Fires at peak inhale.")]
+    [Tooltip("One-shot deep pulse at peak inhale — the room's heartbeat. " +
+             "Place on the BreathingRoom GameObject.")]
     public AudioSource resonanceSource;
     public AudioClip resonanceClip;
 }
 
 [System.Serializable]
-public class SauronAudio
+public class NetoAudio
 {
-    [Tooltip("Must match the RobotId coming from HubTelemetryReceiver.")]
+    public enum State { Idle, Alert, Danger, Shriek }
+
     public int robotId;
 
-    [Tooltip("Continuous high shimmer, volume/pitch follow attention state.")]
-    public AudioSource shimmerSource;
+    [Tooltip("Single AudioSource. Clip swaps as the robot's state changes " +
+             "(Idle → Alert → Danger → Shriek). " +
+             "Place as a child on the robot's Rig GameObject.")]
+    public AudioSource source;
 
-    [Tooltip("Second shimmer layer, slightly detuned when DangerZone active.")]
-    public AudioSource dangerShimmerSource;
-
-    [Tooltip("One-shot bell on touch event.")]
-    public AudioSource touchSource;
-    public AudioClip touchClip;
+    public AudioClip idleClip;
+    public AudioClip alertClip;
+    public AudioClip dangerClip;
+    public AudioClip shriekClip;
 
     [System.NonSerialized]
-    public bool wasInDanger;
+    public State currentState;
+    [System.NonSerialized]
+    public bool hasState;
+
+    public AudioClip StateClip(State state) => state switch
+    {
+        State.Idle   => idleClip,
+        State.Alert  => alertClip,
+        State.Danger => dangerClip,
+        State.Shriek => shriekClip,
+        _            => idleClip
+    };
 }
 
 [System.Serializable]
-public class NetoAudio
+public class SauronAudio
 {
     public int robotId;
 
-    [Tooltip("Continuous low tension hum. Volume reflects danger/load state.")]
-    public AudioSource tensionSource;
+    [Tooltip("Continuous shimmer loop. Pitch/volume follow attention. " +
+             "Place as a child on the Sauron GameObject.")]
+    public AudioSource shimmerSource;
 
-    [Tooltip("One-shot sympathetic resonance when mic level spikes in physical room.")]
-    public AudioSource sympathySource;
-    public AudioClip sympathyClip;
-
-    [System.NonSerialized]
-    public bool dangerFlag;
+    [Tooltip("One-shot bell strike on touch event. " +
+             "Place as a child on the Sauron GameObject.")]
+    public AudioSource touchSource;
+    public AudioClip touchClip;
 }
 
 [System.Serializable]
 public class DeathtrapAudio
 {
-    [Tooltip("Looping subsonic pulse. Volume and pitch follow proximity.")]
+    [Tooltip("Looping subsonic pulse. Volume/pitch follow proximity. " +
+             "Place as a child on the Deathtrap GameObject.")]
     public AudioSource pulseSource;
 
-    [Tooltip("Distance (metres) at which Deathtrap audio starts. " +
-             "Beyond this = silence.")]
+    [Tooltip("Distance (m) at which Deathtrap audio starts. Beyond this = silence.")]
     public float maxDistance = 4f;
 
-    [Tooltip("One-shot pressure impact on touch.")]
-    public AudioSource touchImpactSource;
-    public AudioClip touchImpactClip;
+    [Tooltip("One-shot pressure impact on touch. " +
+             "Place as a child on the Deathtrap GameObject.")]
+    public AudioSource impactSource;
+    public AudioClip impactClip;
 }
 
 [System.Serializable]
 public class MyceliumAmbience
 {
     [Tooltip("The room's resting voice — a long slow evolving pad. " +
-             "Should not be 3D spatialised — attach to the AudioManager itself, " +
-             "not a robot. Spatial Blend = 0 (fully 2D).")]
+             "Non-spatialized (Spatial Blend = 0). " +
+             "Place on the AudioManager GameObject itself, not on a robot.")]
     public AudioSource padSource;
 }

@@ -41,6 +41,7 @@ public class VrRobotUdpBridge : MonoBehaviour
 
     private const byte CMD_NETO_SET = 1;
     private const byte CMD_SAURON_SET = 10;
+    private const byte CMD_DEATHTRAP_SET = 20;
 
     // ── Robot ID constants ────────────────────────────────────────────────
     // Must match HubTelemetryReceiver and hub's _id_to_name map.
@@ -130,6 +131,12 @@ public class VrRobotUdpBridge : MonoBehaviour
         SendPacket(robotId, BuildSauronPayload(bottom, top));
     }
 
+    public void SendDeathtrapCommand(int robotId, int spray, int sphereAngle, int autoMode)
+    {
+        if (!CanSend()) return;
+        SendPacket(robotId, BuildDeathtrapPayload(spray, sphereAngle, autoMode));
+    }
+
     public void SendSafeStateToAllRobots()
     {
         if (_client == null) return;
@@ -140,6 +147,8 @@ public class VrRobotUdpBridge : MonoBehaviour
 
         SendSauronCommand(ID_SAURON1, 90, 90);
         SendSauronCommand(ID_SAURON2, 90, 90);
+
+        SendDeathtrapCommand(ID_DEATHTRAP, spray: 0, sphereAngle: 105, autoMode: 0);
 
         Debug.Log("[VrRobotUdpBridge] Safe state sent to all robots");
     }
@@ -171,6 +180,7 @@ public class VrRobotUdpBridge : MonoBehaviour
             SendPacket(id, BuildNetoPayload(0, 0, 90, 0, 0));
         SendPacket(ID_SAURON1, BuildSauronPayload(90, 90));
         SendPacket(ID_SAURON2, BuildSauronPayload(90, 90));
+        SendPacket(ID_DEATHTRAP, BuildDeathtrapPayload(0, 105, 0));
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────
@@ -233,6 +243,18 @@ public class VrRobotUdpBridge : MonoBehaviour
             (byte)Mathf.Clamp(bottom, 0, 180),
             (byte)Mathf.Clamp(top,   0, 180),
             0xFF    // -1 as signed byte: tells hub "do not change manual mode"
+        };
+    }
+
+    private byte[] BuildDeathtrapPayload(int spray, int sphereAngle, int autoMode)
+    {
+        return new byte[]
+        {
+            CMD_DEATHTRAP_SET,
+            (byte)(spray > 0 ? 1 : 0),
+            (byte)Mathf.Clamp(sphereAngle, 60, 105),
+            (byte)(autoMode > 0 ? 1 : 0),
+            0   // reserved
         };
     }
 
