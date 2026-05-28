@@ -5,6 +5,7 @@ public class PoseInputDispatcher : MonoBehaviour
 {
     public PoseDetector poseDetector;
     public RobotSelector robotSelector;
+    public DeathTrapCoreController deathTrapCore;
 
     [Header("Sauron Input Actions")]
     public InputActionReference leftStickAction;
@@ -25,6 +26,10 @@ public class PoseInputDispatcher : MonoBehaviour
     public float sauronPitchRate = 45f;
     public float triggerDeadzone = 0.1f;
     public float sauronSendRateHz = 20f;
+
+    [Header("Deathtrap Tuning")]
+    [Tooltip("Hand separation distance at which the membrane is fully open.")]
+    public float deathtrapMaxSeparation = 0.8f;
 
     [Header("Neto Tuning")]
     public float netoDeadzone = 0.12f;
@@ -55,6 +60,9 @@ public class PoseInputDispatcher : MonoBehaviour
         (true,  18, 10, 255),   // [3] X — full
     };
 
+    // ── Gesture tracking ──
+    private ControlPose _previousPose = ControlPose.None;
+
     // ── Change-detection cache (prevents console spam) ──
     private ControlPose _lastLoggedPose = (ControlPose)(-1);
     private int _lastLoggedNetoId = -1;
@@ -68,7 +76,16 @@ public class PoseInputDispatcher : MonoBehaviour
 
     void Update()
     {
-        switch (poseDetector.CurrentPose)
+        ControlPose currentPose = poseDetector.CurrentPose;
+
+        if (_previousPose == ControlPose.TwoHandGesture && currentPose != ControlPose.TwoHandGesture)
+        {
+            if (deathTrapCore != null)
+                deathTrapCore.EndExpose();
+        }
+        _previousPose = currentPose;
+
+        switch (currentPose)
         {
             case ControlPose.ChestMode:
                 HandleChestMode();
@@ -148,12 +165,17 @@ public class PoseInputDispatcher : MonoBehaviour
         if (Time.time >= _netoNextSend)
         {
             int motorUnits;
-            if (Mathf.Abs(stickY) > netoDeadzone)
-                motorUnits = stickY > 0
-                    ? Mathf.RoundToInt(Mathf.Lerp(90f, 0f, stickY))
-                    : Mathf.RoundToInt(Mathf.Lerp(90f, 180f, -stickY));
+
+            if (stickY > netoDeadzone)
+            {
+                // Push up → move from bottom (0) toward top (180)
+                motorUnits = Mathf.RoundToInt(Mathf.Lerp(0f, 180f, stickY));
+            }
             else
-                motorUnits = 90;
+            {
+                // Neutral or push down → bottom (physical starting position)
+                motorUnits = 0;
+            }
 
             if (motorUnits != _lastNetoMotor)
             {
@@ -174,18 +196,28 @@ public class PoseInputDispatcher : MonoBehaviour
 
     void HandleGesture()
     {
-        // Reserved for deathtrap robot
+        if (deathTrapCore == null) return;
+
+        float handDist = Vector3.Distance(
+            poseDetector.leftController.position,
+            poseDetector.rightController.position);
+
+        float openness = Mathf.Clamp01(
+            (handDist - poseDetector.deathtrapHandProximity) /
+            (deathtrapMaxSeparation - poseDetector.deathtrapHandProximity));
+
+        deathTrapCore.SetExpose(openness);
     }
 
     // ── NONE / TRANSITION ────────────────────────────────────────────
 
     void HandleNoneMode()
     {
-        // Stop whichever Neto was last active
-        if (_lastNetoMotor != 90 && _previousNeto != null)
+        // Return last active Neto to bottom position (0)
+        if (_previousNeto != null && _lastNetoMotor != 0)
         {
-            _previousNeto.SetMotorSpeedUnits(90);
-            _lastNetoMotor = 90;
+            _previousNeto.SetMotorSpeedUnits(0);
+            _lastNetoMotor = 0;
         }
     }
 
@@ -282,7 +314,15 @@ public class PoseInputDispatcher : MonoBehaviour
             ? $"S1: yaw={s1b} tilt={s1t}\nS2: yaw={s2b} tilt={s2t}"
             : (sauronId == -1 ? "SAURON: —" : $"SAURON: #{sauronId}");
 
-        debugText.text = $"{modeBlock}\n{netoBlock}\n{sauronBlock}";
+        string deathtrapBlock = "";
+        if (pose == ControlPose.TwoHandGesture && deathTrapCore != null)
+        {
+            var pub = deathTrapCore.GetComponentInParent<DeathTrapCommandPublisher>();
+            if (pub != null)
+                deathtrapBlock = $"DEATHTRAP: angle={pub.CurrentSphereAngle}";
+        }
+
+        debugText.text = $"{modeBlock}\n{netoBlock}\n{sauronBlock}\n{deathtrapBlock}";
     }
 
     void LogOnChange(ref string cached, string current, string message)

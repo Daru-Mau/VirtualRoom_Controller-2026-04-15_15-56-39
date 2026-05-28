@@ -6,9 +6,8 @@ using UnityEngine;
 /// Attach to the Neto_X_Rig GameObject (same one that has NetoCommandPublisher).
 ///
 /// How it works:
-///   Motor unit 90  → stopped, body stays still.
-///   Motor unit  0  → full pull → body rises (rope shortens).
-///   Motor unit 180 → full release → body descends (rope lengthens).
+///   Motor unit   0 → lowest position (bottom).
+///   Motor unit 180 → highest position (top, at the wall).
 ///
 /// The Handle transform (Neto_X_Handle) is moved along its local Y axis.
 /// The RopeVisual capsule is stretched to always span from the anchor to the handle.
@@ -37,9 +36,9 @@ public class NetoVisualDriver : MonoBehaviour
     [Tooltip("How far the handle can move DOWN from its starting position (metres).")]
     [SerializeField] private float maxDownOffset = 1.5f;
 
-    [Header("Speed")]
-    [Tooltip("Maximum movement speed in metres/second at full motor input.")]
-    [SerializeField] private float maxMoveSpeed = 1.2f;
+    [Header("Smoothing")]
+    [Tooltip("How fast the handle lerps toward the target position (higher = snappier).")]
+    [SerializeField] private float smoothSpeed = 5f;
 
     [Header("Rope Visual (optional)")]
     [Tooltip("Original local Y scale of the RopeVisual at the start position. " +
@@ -104,20 +103,13 @@ public class NetoVisualDriver : MonoBehaviour
     {
         int speedUnits = publisher.CurrentMotorSpeedUnits;
 
-        // Map 0–180 → -1 to +1.  90 = 0 (stopped).
-        // Negative = pulling = UP in Unity Y.
-        // Positive = releasing = DOWN in Unity Y.
-        float normalised = (speedUnits - 90f) / 90f;
-
-        // Flip sign: pulling (negative normalised) should increase Y (upward)
-        float velocity = -normalised * maxMoveSpeed;
+        // Map 0 (bottom) → _startLocalY - maxDownOffset (lowest)
+        // Map 180 (top)  → _startLocalY + maxUpOffset (highest)
+        float t = speedUnits / 180f;
+        float targetY = (_startLocalY - maxDownOffset) + t * (maxDownOffset + maxUpOffset);
 
         Vector3 pos = handle.localPosition;
-        pos.y = Mathf.Clamp(
-            pos.y + velocity * Time.deltaTime,
-            _startLocalY - maxDownOffset,
-            _startLocalY + maxUpOffset
-        );
+        pos.y = Mathf.Lerp(pos.y, targetY, Time.deltaTime * smoothSpeed);
         handle.localPosition = pos;
     }
 

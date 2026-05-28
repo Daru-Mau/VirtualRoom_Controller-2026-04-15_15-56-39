@@ -19,6 +19,7 @@ public class BreathingSphere : MonoBehaviour
     private float _rawLevel;
     private float _smoothedLevel;
     private int _lastState = -1;
+    private float _exposeFactor;
     private void Start()
     {
         if (telemetryReceiver == null)
@@ -30,6 +31,11 @@ public class BreathingSphere : MonoBehaviour
     {
         if (telemetryReceiver != null)
             telemetryReceiver.BreatherTelemetryReceived -= OnBreather;
+    }
+
+    public void SetExposeFactor(float factor)
+    {
+        _exposeFactor = factor;
     }
     private void OnBreather(HubTelemetryReceiver.BreatherTelemetry t)
     {
@@ -59,7 +65,7 @@ public class BreathingSphere : MonoBehaviour
 
         _smoothedLevel = Mathf.Lerp(_smoothedLevel, _rawLevel, Time.deltaTime * smoothSpeed);
         float breathOffset = _directionSign * _smoothedLevel * breathMagnitude;
-        float target = baseScale * (1f + breathOffset);
+        float target = baseScale * (1f + breathOffset) * (1f + _exposeFactor);
         float current = transform.localScale.x;
         float s = Mathf.Lerp(current, target, Time.deltaTime * smoothSpeed);
         transform.localScale = Vector3.one * s;

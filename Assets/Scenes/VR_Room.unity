@@ -314,7 +314,7 @@ Transform:
   m_GameObject: {fileID: 151757796}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 9.55, y: 3.27, z: -7.67}
+  m_LocalPosition: {x: 9.55, y: -2.17, z: -7.67}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -524,7 +524,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   bridge: {fileID: 1879940529}
   robotId: 1
-  defaultMotorSpeedUnits: 90
+  defaultMotorSpeedUnits: 0
   defaultLedRadius: 5
   defaultLedBrightness: 150
   defaultVolume: 10
@@ -575,7 +575,7 @@ MonoBehaviour:
   ropeAnchor: {fileID: 2088301697}
   maxUpOffset: 1.5
   maxDownOffset: 1.5
-  maxMoveSpeed: 1.2
+  smoothSpeed: 5
   ropeBaseScaleY: 0
   latestMicLevel: 0
 --- !u!1001 &288750400
@@ -752,7 +752,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   bridge: {fileID: 1879940529}
   robotId: 2
-  defaultMotorSpeedUnits: 90
+  defaultMotorSpeedUnits: 0
   defaultLedRadius: 5
   defaultLedBrightness: 150
   defaultVolume: 10
@@ -803,7 +803,7 @@ MonoBehaviour:
   ropeAnchor: {fileID: 2065671021}
   maxUpOffset: 1.5
   maxDownOffset: 1.5
-  maxMoveSpeed: 1.2
+  smoothSpeed: 5
   ropeBaseScaleY: 0
   latestMicLevel: 0
 --- !u!1 &422706246
@@ -1092,6 +1092,111 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 1fd3a7c43c8190f4d8c167ebde694364, type: 3}
+--- !u!1 &585092936
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 585092937}
+  - component: {fileID: 585092940}
+  - component: {fileID: 585092939}
+  - component: {fileID: 585092938}
+  m_Layer: 5
+  m_Name: Core
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &585092937
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 585092936}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -1.28, z: 0}
+  m_LocalScale: {x: 2.9357, y: 2.9357, z: 2.9357}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2025569367}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!135 &585092938
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 585092936}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.5
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!23 &585092939
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 585092936}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: b16f5f73b368f724ba4fece54476c275, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &585092940
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 585092936}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &594455110
 GameObject:
   m_ObjectHideFlags: 0
@@ -4485,7 +4590,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   bridge: {fileID: 1879940529}
   robotId: 3
-  defaultMotorSpeedUnits: 90
+  defaultMotorSpeedUnits: 0
   defaultLedRadius: 5
   defaultLedBrightness: 150
   defaultVolume: 10
@@ -4536,7 +4641,7 @@ MonoBehaviour:
   ropeAnchor: {fileID: 422706251}
   maxUpOffset: 1.5
   maxDownOffset: 1.5
-  maxMoveSpeed: 1.2
+  smoothSpeed: 5
   ropeBaseScaleY: 0
   latestMicLevel: 0
 --- !u!1 &1879940528
@@ -4977,6 +5082,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2025569367}
+  - component: {fileID: 2025569368}
   m_Layer: 5
   m_Name: DeathTrap_Core
   m_TagString: Untagged
@@ -4996,9 +5102,28 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 585092937}
   m_Father: {fileID: 151757797}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2025569368
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2025569366}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e6ed027c0d9cad41a5c0f1e1f4ba32b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  publisher: {fileID: 151757798}
+  membrane: {fileID: 1501889699}
+  entryDirection: {x: 0, y: 0, z: 0}
+  entryDepth: 3
+  membraneScaleAmplitude: 0.1
+  smoothSpeed: 5
 --- !u!1 &2036060654
 GameObject:
   m_ObjectHideFlags: 0
@@ -5648,9 +5773,9 @@ MonoBehaviour:
   - {fileID: 777780908}
   - {fileID: 253557402}
   deathtrapRobot: {fileID: 151757798}
-  selectionMaxDistance: 10
-  selectionRayRadius: 0.35
-  usePhysicsSelection: 1
+  selectionMaxDistance: 30
+  selectionRayRadius: 0.5
+  usePhysicsSelection: 0
   selectionMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -5675,6 +5800,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   poseDetector: {fileID: 2095526952}
   robotSelector: {fileID: 2095526950}
+  deathTrapCore: {fileID: 2025569368}
   leftStickAction: {fileID: 3873409416322058290, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
   rightStickAction: {fileID: 2990578776769841568, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
   leftTriggerAction: {fileID: 8362300759372525055, guid: 01027f561fed07f4d8ccbd38f27ba26e, type: 3}
@@ -5689,6 +5815,7 @@ MonoBehaviour:
   sauronPitchRate: 45
   triggerDeadzone: 0.1
   sauronSendRateHz: 20
+  deathtrapMaxSeparation: 0.8
   netoDeadzone: 0.12
   netoSendRateHz: 20
   debugText: {fileID: 1296288915}

@@ -18,21 +18,22 @@ public class NetoCommandPublisher : MonoBehaviour
     [SerializeField] public NetoRobotId robotId = NetoRobotId.Neto1_IP110;
 
     [Header("Defaults")]
-    [SerializeField, Range(0, 180)] private int defaultMotorSpeedUnits = 90;
+    [Tooltip("0 = lowest (bottom), 180 = highest (top). Neto starts at bottom physically.")]
+    [SerializeField, Range(0, 180)] private int defaultMotorSpeedUnits = 0;
     [SerializeField, Range(0, 10)] private int defaultLedRadius = 0;
     [SerializeField, Range(0, 255)] private int defaultLedBrightness = 0;
     [SerializeField, Range(0, 20)] private int defaultVolume = 0;
 
     [Header("Runtime State — read only")]
     [SerializeField] private bool soundEnabled;
-    [SerializeField] private int currentMotorSpeedUnits = 90;
+    [SerializeField] private int currentMotorSpeedUnits;
     [SerializeField] private int currentLedRadius;
     [SerializeField] private int currentLedBrightness;
     [SerializeField] private int currentVolume;
 
     // State caching — only send if changed (deduplication)
     private bool _lastSentSoundEnabled;
-    private int _lastSentMotorSpeedUnits = 90;
+    private int _lastSentMotorSpeedUnits;
     private int _lastSentLedRadius;
     private int _lastSentLedBrightness;
     private int _lastSentVolume;
@@ -43,7 +44,7 @@ public class NetoCommandPublisher : MonoBehaviour
     // ── Public read access for visual drivers ────────────────────────────
     /// <summary>
     /// Current motor speed in servo units (0–180).
-    /// 90 = stopped, 0 = full pull (up), 180 = full release (down).
+    /// 0 = lowest (bottom), 180 = highest (top).
     /// </summary>
     public int CurrentMotorSpeedUnits => currentMotorSpeedUnits;
 
@@ -80,13 +81,13 @@ public class NetoCommandPublisher : MonoBehaviour
 
     public void SetPullNormalized(float n)
     {
-        currentMotorSpeedUnits = Mathf.RoundToInt(Mathf.Lerp(90f, 0f, Mathf.Clamp01(n)));
+        currentMotorSpeedUnits = Mathf.RoundToInt(Mathf.Lerp(0f, 180f, Mathf.Clamp01(n)));
         SendCommand();
     }
 
     public void SetReleaseNormalized(float n)
     {
-        currentMotorSpeedUnits = Mathf.RoundToInt(Mathf.Lerp(90f, 180f, Mathf.Clamp01(n)));
+        currentMotorSpeedUnits = Mathf.RoundToInt(Mathf.Lerp(0f, 180f, Mathf.Clamp01(n)));
         SendCommand();
     }
 
@@ -108,7 +109,7 @@ public class NetoCommandPublisher : MonoBehaviour
     public void ResetToDefaults()
     {
         soundEnabled = false;
-        currentMotorSpeedUnits = 90;
+        currentMotorSpeedUnits = 0;
         currentLedRadius = 0;
         currentLedBrightness = 0;
         currentVolume = 0;

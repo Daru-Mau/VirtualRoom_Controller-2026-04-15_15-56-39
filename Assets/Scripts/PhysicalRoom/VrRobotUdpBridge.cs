@@ -142,7 +142,7 @@ public class VrRobotUdpBridge : MonoBehaviour
         if (_client == null) return;
 
         for (int id = ID_NETO1; id <= ID_NETO3; id++)
-            SendNetoCommand(id, sound: 0, volume: 0, speedUnits: 90,
+            SendNetoCommand(id, sound: 0, volume: 0, speedUnits: 0,
                             ledRadius: 0, ledBrightness: 0);
 
         SendSauronCommand(ID_SAURON1, 90, 90);
@@ -177,7 +177,7 @@ public class VrRobotUdpBridge : MonoBehaviour
     {
         if (_client == null) return;
         for (int id = ID_NETO1; id <= ID_NETO3; id++)
-            SendPacket(id, BuildNetoPayload(0, 0, 90, 0, 0));
+            SendPacket(id, BuildNetoPayload(0, 0, 0, 0, 0));
         SendPacket(ID_SAURON1, BuildSauronPayload(90, 90));
         SendPacket(ID_SAURON2, BuildSauronPayload(90, 90));
         SendPacket(ID_DEATHTRAP, BuildDeathtrapPayload(0, 105, 0));
