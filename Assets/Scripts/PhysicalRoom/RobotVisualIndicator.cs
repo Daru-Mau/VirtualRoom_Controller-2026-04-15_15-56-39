@@ -16,12 +16,16 @@ public class RobotVisualIndicator : MonoBehaviour
 {
     public enum IndicatorState { Idle, Hovered, Selected }
 
+    [Header("Reference")]
+    [Tooltip("If set, the indicator disc follows this transform's world position instead of staying on the rig.")]
+    public Transform referenceTransform;
+
     [Header("Ring Appearance")]
     [Tooltip("Radius of the selection disc in metres")]
     public float ringRadius = 0.25f;
     [Tooltip("Thickness (height) of the disc")]
     public float ringThickness = 0.03f;
-    [Tooltip("Height offset above the robot's local origin")]
+    [Tooltip("Height offset above the robot's local origin (only used when referenceTransform is null).")]
     public float heightOffset = 0.1f;
 
     [Header("Colours")]
@@ -47,12 +51,32 @@ public class RobotVisualIndicator : MonoBehaviour
 
     void Awake()
     {
+        if (referenceTransform == null)
+            referenceTransform = FindBodyChild(transform);
         _ring = BuildDisc();
         Apply(IndicatorState.Idle);
     }
 
+    static Transform FindBodyChild(Transform t)
+    {
+        foreach (Transform child in t)
+        {
+            if (child.name.Contains("Body"))
+            {
+                foreach (Transform grandchild in child)
+                    if (grandchild.name.Contains("Body"))
+                        return grandchild;
+                return child;
+            }
+        }
+        return t;
+    }
+
     void Update()
     {
+        if (_ring != null && referenceTransform != null)
+            _ring.transform.position = referenceTransform.position;
+
         if (_state == IndicatorState.Selected)
         {
             float pulse = 1f + Mathf.Sin(Time.time * pulseSpeed) * pulseAmplitude;

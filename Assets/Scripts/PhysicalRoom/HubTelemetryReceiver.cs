@@ -76,6 +76,8 @@ public class HubTelemetryReceiver : MonoBehaviour
         public int MicLevel;
         public int DangerFlag;
         public float? PositionMm;
+        public float? PositionMinMm;
+        public float? PositionMaxMm;
         public int? Load;
         public int? Temperature;
         public int PositionValid;
@@ -370,6 +372,8 @@ public class HubTelemetryReceiver : MonoBehaviour
         else return false;
 
         float? positionMm = null;
+        float? positionMinMm = null;
+        float? positionMaxMm = null;
         int? load = null;
         int? temperature = null;
         int positionValid = 0;
@@ -378,6 +382,8 @@ public class HubTelemetryReceiver : MonoBehaviour
         if (parts.Length > optStart + 1 && int.TryParse(parts[optStart + 1], out int lv)) load = lv;
         if (parts.Length > optStart + 2 && int.TryParse(parts[optStart + 2], out int tv)) temperature = tv;
         if (parts.Length > optStart + 3) int.TryParse(parts[optStart + 3], out positionValid);
+        if (parts.Length > optStart + 4 && float.TryParse(parts[optStart + 4], out float pMin)) positionMinMm = pMin;
+        if (parts.Length > optStart + 5 && float.TryParse(parts[optStart + 5], out float pMax)) positionMaxMm = pMax;
 
         telemetry = new NetoTelemetry
         {
@@ -385,6 +391,8 @@ public class HubTelemetryReceiver : MonoBehaviour
             MicLevel = micLevel,
             DangerFlag = dangerFlag,
             PositionMm = positionMm,
+            PositionMinMm = positionMinMm,
+            PositionMaxMm = positionMaxMm,
             Load = load,
             Temperature = temperature,
             PositionValid = positionValid,

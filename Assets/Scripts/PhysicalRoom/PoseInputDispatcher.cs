@@ -20,6 +20,8 @@ public class PoseInputDispatcher : MonoBehaviour
     public InputActionReference bButtonAction;
     public InputActionReference xButtonAction;
     public InputActionReference yButtonAction;
+    public InputActionReference leftStickPressAction;
+    public InputActionReference rightStickPressAction;
 
     [Header("Sauron Tuning")]
     public float sauronYawRate = 60f;
@@ -48,7 +50,7 @@ public class PoseInputDispatcher : MonoBehaviour
 
     // ── Neto motor state ──
     private float _netoNextSend;
-    private int _lastNetoMotor = 90;
+    private int _lastNetoMotor = 0;
     private NetoCommandPublisher _previousNeto;
 
     // ── Neto presets: (sound, volume, ledRadius, ledBrightness) ──
@@ -154,13 +156,26 @@ public class PoseInputDispatcher : MonoBehaviour
 
         if (neto != _previousNeto)
         {
-            _lastNetoMotor = -1; // force resend on robot switch
+            _lastNetoMotor = -1;
             _previousNeto = neto;
         }
 
-        float stickY = poseDetector.CurrentPose == ControlPose.DirectionalLeft
+        bool isLeft = poseDetector.CurrentPose == ControlPose.DirectionalLeft;
+        float stickY = isLeft
             ? leftStickAction.action.ReadValue<Vector2>().y
             : rightStickAction.action.ReadValue<Vector2>().y;
+
+        // Joystick click → reset to zero (bottom) and send to hub
+        bool stickClicked = isLeft
+            ? leftStickPressAction != null && leftStickPressAction.action.WasPressedThisFrame()
+            : rightStickPressAction != null && rightStickPressAction.action.WasPressedThisFrame();
+
+        if (stickClicked)
+        {
+            neto.SetMotorSpeedUnits(0);
+            _lastNetoMotor = 0;
+            return;
+        }
 
         if (Time.time >= _netoNextSend)
         {
@@ -171,10 +186,15 @@ public class PoseInputDispatcher : MonoBehaviour
                 // Push up → move from bottom (0) toward top (180)
                 motorUnits = Mathf.RoundToInt(Mathf.Lerp(0f, 180f, stickY));
             }
+            else if (stickY < -netoDeadzone)
+            {
+                // Push down → move from top (180) toward bottom (0)
+                motorUnits = Mathf.RoundToInt(Mathf.Lerp(180f, 0f, -stickY));
+            }
             else
             {
-                // Neutral or push down → bottom (physical starting position)
-                motorUnits = 0;
+                // Neutral → hold current position
+                motorUnits = _lastNetoMotor;
             }
 
             if (motorUnits != _lastNetoMotor)
@@ -213,12 +233,57 @@ public class PoseInputDispatcher : MonoBehaviour
 
     void HandleNoneMode()
     {
-        // Return last active Neto to bottom position (0)
-        if (_previousNeto != null && _lastNetoMotor != 0)
+        _previousNeto = null;
+        DriveActiveNetoFromZoneHand();
+    }
+
+    void DriveActiveNetoFromZoneHand()
+    {
+        var hand = robotSelector.ActiveHand;
+        if (hand == RobotSelector.Hand.None) return;
+
+        var neto = robotSelector.ActiveNeto;
+        if (neto == null) return;
+
+        float stickY = hand == RobotSelector.Hand.Left
+            ? leftStickAction.action.ReadValue<Vector2>().y
+            : rightStickAction.action.ReadValue<Vector2>().y;
+
+        bool stickClicked = hand == RobotSelector.Hand.Left
+            ? leftStickPressAction != null && leftStickPressAction.action.WasPressedThisFrame()
+            : rightStickPressAction != null && rightStickPressAction.action.WasPressedThisFrame();
+
+        if (stickClicked)
         {
-            _previousNeto.SetMotorSpeedUnits(0);
+            neto.SetMotorSpeedUnits(0);
             _lastNetoMotor = 0;
+            return;
         }
+
+        if (Time.time >= _netoNextSend)
+        {
+            int motorUnits;
+
+            if (stickY > netoDeadzone)
+                motorUnits = Mathf.RoundToInt(Mathf.Lerp(0f, 180f, stickY));
+            else if (stickY < -netoDeadzone)
+                motorUnits = Mathf.RoundToInt(Mathf.Lerp(180f, 0f, -stickY));
+            else
+                motorUnits = _lastNetoMotor;
+
+            if (motorUnits != _lastNetoMotor)
+            {
+                neto.SetMotorSpeedUnits(motorUnits);
+                _lastNetoMotor = motorUnits;
+            }
+
+            _netoNextSend = Time.time + 1f / netoSendRateHz;
+        }
+
+        if (aButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 1);
+        if (bButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 2);
+        if (xButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 3);
+        if (yButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 0);
     }
 
     // ── HELPERS ──────────────────────────────────────────────────────
@@ -297,6 +362,10 @@ public class PoseInputDispatcher : MonoBehaviour
         // ── Canvas: always refresh if assigned ──
         if (debugText == null) return;
 
+        Vector3 hPos = poseDetector.headset.position;
+        Vector3 lOff = poseDetector.leftController.position - hPos;
+        Vector3 rOff = poseDetector.rightController.position - hPos;
+
         string modeBlock = pose switch
         {
             ControlPose.ChestMode => "MODE: CHEST",
@@ -305,6 +374,8 @@ public class PoseInputDispatcher : MonoBehaviour
             ControlPose.TwoHandGesture => "MODE: GESTURE",
             _ => "MODE: NONE",
         };
+
+        string offBlock = $"L:{lOff.x:F3},{lOff.y:F3},{lOff.z:F3}  R:{rOff.x:F3},{rOff.y:F3},{rOff.z:F3}";
 
         string netoBlock = netoId == -1
             ? "NETO: —"
@@ -322,7 +393,7 @@ public class PoseInputDispatcher : MonoBehaviour
                 deathtrapBlock = $"DEATHTRAP: angle={pub.CurrentSphereAngle}";
         }
 
-        debugText.text = $"{modeBlock}\n{netoBlock}\n{sauronBlock}\n{deathtrapBlock}";
+        debugText.text = $"{modeBlock}\n{offBlock}\n{netoBlock}\n{sauronBlock}\n{deathtrapBlock}";
     }
 
     void LogOnChange(ref string cached, string current, string message)

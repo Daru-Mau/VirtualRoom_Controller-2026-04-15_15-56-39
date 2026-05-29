@@ -180,6 +180,24 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""LeftStickPress"",
+                    ""type"": ""Button"",
+                    ""id"": ""b3e7a0c1-5d4f-4a8e-9c2b-7f1d6e3a0b8c"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""RightStickPress"",
+                    ""type"": ""Button"",
+                    ""id"": ""d9f2e8c7-6a1b-4c3d-9e5f-0b8a7c6d5e4f"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -292,6 +310,28 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
                     ""action"": ""YButton"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""a1b2c3d4-e5f6-7890-abcd-ef1234567890"",
+                    ""path"": ""<XRController>{LeftHand}/{Primary2DAxisClick}"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""LeftStickPress"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""f0e1d2c3-b4a5-6789-0fed-cba987654321"",
+                    ""path"": ""<XRController>{RightHand}/{Primary2DAxisClick}"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""RightStickPress"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -310,6 +350,8 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
         m_RobotControl_BButton = m_RobotControl.FindAction("BButton", throwIfNotFound: true);
         m_RobotControl_XButton = m_RobotControl.FindAction("XButton", throwIfNotFound: true);
         m_RobotControl_YButton = m_RobotControl.FindAction("YButton", throwIfNotFound: true);
+        m_RobotControl_LeftStickPress = m_RobotControl.FindAction("LeftStickPress", throwIfNotFound: true);
+        m_RobotControl_RightStickPress = m_RobotControl.FindAction("RightStickPress", throwIfNotFound: true);
     }
 
     ~@RobotControllerActions()
@@ -400,6 +442,8 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
     private readonly InputAction m_RobotControl_BButton;
     private readonly InputAction m_RobotControl_XButton;
     private readonly InputAction m_RobotControl_YButton;
+    private readonly InputAction m_RobotControl_LeftStickPress;
+    private readonly InputAction m_RobotControl_RightStickPress;
     /// <summary>
     /// Provides access to input actions defined in input action map "RobotControl".
     /// </summary>
@@ -451,6 +495,14 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
         /// Provides access to the underlying input action "RobotControl/YButton".
         /// </summary>
         public InputAction @YButton => m_Wrapper.m_RobotControl_YButton;
+        /// <summary>
+        /// Provides access to the underlying input action "RobotControl/LeftStickPress".
+        /// </summary>
+        public InputAction @LeftStickPress => m_Wrapper.m_RobotControl_LeftStickPress;
+        /// <summary>
+        /// Provides access to the underlying input action "RobotControl/RightStickPress".
+        /// </summary>
+        public InputAction @RightStickPress => m_Wrapper.m_RobotControl_RightStickPress;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -507,6 +559,12 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
             @YButton.started += instance.OnYButton;
             @YButton.performed += instance.OnYButton;
             @YButton.canceled += instance.OnYButton;
+            @LeftStickPress.started += instance.OnLeftStickPress;
+            @LeftStickPress.performed += instance.OnLeftStickPress;
+            @LeftStickPress.canceled += instance.OnLeftStickPress;
+            @RightStickPress.started += instance.OnRightStickPress;
+            @RightStickPress.performed += instance.OnRightStickPress;
+            @RightStickPress.canceled += instance.OnRightStickPress;
         }
 
         /// <summary>
@@ -548,6 +606,12 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
             @YButton.started -= instance.OnYButton;
             @YButton.performed -= instance.OnYButton;
             @YButton.canceled -= instance.OnYButton;
+            @LeftStickPress.started -= instance.OnLeftStickPress;
+            @LeftStickPress.performed -= instance.OnLeftStickPress;
+            @LeftStickPress.canceled -= instance.OnLeftStickPress;
+            @RightStickPress.started -= instance.OnRightStickPress;
+            @RightStickPress.performed -= instance.OnRightStickPress;
+            @RightStickPress.canceled -= instance.OnRightStickPress;
         }
 
         /// <summary>
@@ -658,5 +722,19 @@ public partial class @RobotControllerActions: IInputActionCollection2, IDisposab
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnYButton(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "LeftStickPress" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnLeftStickPress(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "RightStickPress" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnRightStickPress(InputAction.CallbackContext context);
     }
 }

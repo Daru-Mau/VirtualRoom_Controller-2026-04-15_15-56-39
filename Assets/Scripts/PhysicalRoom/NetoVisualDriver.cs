@@ -38,19 +38,26 @@ public class NetoVisualDriver : MonoBehaviour
 
     [Header("Smoothing")]
     [Tooltip("How fast the handle lerps toward the target position (higher = snappier).")]
-    [SerializeField] private float smoothSpeed = 5f;
+    [SerializeField, Range(0.5f, 10f)] private float smoothSpeed = 2f;
 
     [Header("Rope Visual (optional)")]
     [Tooltip("Original local Y scale of the RopeVisual at the start position. " +
              "Leave at 0 to auto-measure on Start.")]
     [SerializeField] private float ropeBaseScaleY = 0f;
 
-    [Header("Telemetry (read only)")]
+    [Header("Telemetry")]
     [SerializeField, Range(0, 255)] private int latestMicLevel;
+
+    [Tooltip("How long after the last telemetry packet to keep using real position before falling back to speed simulation.")]
+    [SerializeField, Range(0.1f, 2f)] private float telemetryTimeout = 0.5f;
 
     // ── Runtime ──────────────────────────────────────────────────────────
     private float _startLocalY;
     private float _ropeBaseLength;
+    private float _lastTelemetryTime = -100f;
+    private float _telemetryPositionMm;
+    private float _telemetryMinMm;
+    private float _telemetryMaxMm;
 
     // ─────────────────────────────────────────────────────────────────────
 
@@ -88,7 +95,10 @@ public class NetoVisualDriver : MonoBehaviour
     {
         if (publisher == null || handle == null) return;
 
-        MoveHandle();
+        if (Time.time - _lastTelemetryTime < telemetryTimeout)
+            ApplyTelemetryPosition();
+        else
+            MoveHandle();
     }
 
     void OnDestroy()
@@ -113,6 +123,25 @@ public class NetoVisualDriver : MonoBehaviour
         handle.localPosition = pos;
     }
 
+    void ApplyTelemetryPosition()
+    {
+        float range = _telemetryMaxMm - _telemetryMinMm;
+        if (range <= 0f) return;
+
+        // t = 0 → at min → rope fully retracted → handle at highest Y
+        // t = 1 → at max → rope fully extended → handle at lowest Y
+        float t = Mathf.Clamp01((_telemetryPositionMm - _telemetryMinMm) / range);
+        float targetY = Mathf.Lerp(
+            _startLocalY + maxUpOffset,
+            _startLocalY - maxDownOffset,
+            t
+        );
+
+        Vector3 pos = handle.localPosition;
+        pos.y = Mathf.Lerp(pos.y, targetY, 10f * Time.deltaTime);
+        handle.localPosition = pos;
+    }
+
     // ── Telemetry ───────────────────────────────────────────────────────
 
     void HandleNetoTelemetry(HubTelemetryReceiver.NetoTelemetry telemetry)
@@ -122,7 +151,16 @@ public class NetoVisualDriver : MonoBehaviour
 
         latestMicLevel = Mathf.Clamp(telemetry.MicLevel, 0, 255);
         ApplyMicLevelVisuals(latestMicLevel);
+
+        if (telemetry.PositionMm.HasValue && telemetry.PositionMinMm.HasValue && telemetry.PositionMaxMm.HasValue)
+        {
+            _telemetryPositionMm = telemetry.PositionMm.Value;
+            _telemetryMinMm = telemetry.PositionMinMm.Value;
+            _telemetryMaxMm = telemetry.PositionMaxMm.Value;
+            _lastTelemetryTime = Time.time;
+        }
     }
+
 
     void ApplyMicLevelVisuals(int micLevel)
     {

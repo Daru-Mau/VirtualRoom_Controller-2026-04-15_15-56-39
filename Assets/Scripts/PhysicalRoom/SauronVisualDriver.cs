@@ -49,6 +49,10 @@ public class SauronVisualDriver : MonoBehaviour
     [Tooltip("Lerp speed for rotation smoothing. Set to 0 to disable (instant).")]
     [SerializeField] private float smoothSpeed = 15f;
 
+    [Header("TEMP: Direct Binding")]
+    [Tooltip("When enabled, reads yaw/tilt pivot rotations and sends them as servo commands instead of driving pivots from servos.")]
+    [SerializeField] private bool bindToPivot = false;
+
     // ── Runtime ──────────────────────────────────────────────────────────
     private Quaternion _yawTarget = Quaternion.identity;
     private Quaternion _tiltTarget = Quaternion.identity;
@@ -76,8 +80,15 @@ public class SauronVisualDriver : MonoBehaviour
     {
         if (publisher == null) return;
 
-        UpdateYaw();
-        UpdateTilt();
+        if (bindToPivot)
+        {
+            BindFromPivot();
+        }
+        else
+        {
+            UpdateYaw();
+            UpdateTilt();
+        }
     }
 
     // ── Yaw ───────────────────────────────────────────────────────────────
@@ -112,6 +123,32 @@ public class SauronVisualDriver : MonoBehaviour
             ? Quaternion.Lerp(tiltPivot.localRotation, _tiltTarget, Time.deltaTime * smoothSpeed)
             : _tiltTarget;
     }
+
+    // ── TEMP: Direct Binding (Pivot → Servo) ───────────────────────────
+
+    void BindFromPivot()
+    {
+        if (yawPivot != null)
+        {
+            float yawAngle = NormalizeAngle(yawPivot.localEulerAngles.y);
+            int bottom = Mathf.RoundToInt(Mathf.Lerp(0f, 180f,
+                Mathf.InverseLerp(-yawMaxDegrees, yawMaxDegrees, yawAngle * (invertYaw ? -1f : 1f))));
+            publisher.SetBottomServo(bottom);
+        }
+
+        if (tiltPivot != null)
+        {
+            Vector3 localEuler = tiltPivot.localEulerAngles;
+            float tiltAngle = tiltAxis == Vector3.right ? NormalizeAngle(localEuler.x)
+                           : tiltAxis == Vector3.forward ? NormalizeAngle(localEuler.z)
+                           : Vector3.Dot(tiltPivot.localRotation * Vector3.forward, tiltAxis) * Mathf.Rad2Deg;
+            int top = Mathf.RoundToInt(Mathf.Lerp(0f, 180f,
+                Mathf.InverseLerp(-tiltMaxDegrees, tiltMaxDegrees, tiltAngle * (invertTilt ? -1f : 1f))));
+            publisher.SetTopServo(top);
+        }
+    }
+
+    static float NormalizeAngle(float a) => a > 180f ? a - 360f : a;
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()

@@ -11,14 +11,19 @@ public class RobotSelector : MonoBehaviour
     [Header("Deathtrap")]
     public DeathTrapCommandPublisher deathtrapRobot;
 
-    [Header("Selection")]
-    [Tooltip("Max distance along the ray to consider a Neto")]
-    public float selectionMaxDistance = 10f;
-    [Tooltip("Max distance from the ray to count as aligned (geometric mode)")]
-    public float selectionRayRadius = 0.35f;
-    [Tooltip("Use physics sphere cast to select Netos by collider")]
-    public bool usePhysicsSelection = true;
-    public LayerMask selectionMask = ~0;
+    [Header("Neto Body-Zone Mapping")]
+    [Tooltip("Neto selected when the left shoulder zone is touched.")]
+    public NetoCommandPublisher leftShoulderNeto;
+    [Tooltip("Neto selected when the right shoulder zone is touched.")]
+    public NetoCommandPublisher rightShoulderNeto;
+    [Tooltip("Neto selected when the third zone is touched.")]
+    public NetoCommandPublisher thirdZoneNeto;
+
+    [Header("Sauron Selection")]
+    [Tooltip("Max distance along the ray to consider a Sauron")]
+    public float selectionMaxDistance = 30f;
+    [Tooltip("Max distance from the ray to count as aligned")]
+    public float selectionRayRadius = 0.5f;
 
     // ── In-VR Debug Ray ─────────────────────────────────────────────────────
     [Header("In-VR Debug Ray")]
@@ -29,11 +34,11 @@ public class RobotSelector : MonoBehaviour
     public float debugTipRadius = 0.06f;
 
     [ColorUsage(true, true)]
-    public Color debugRayColorIdle     = new Color(0f,  0.8f, 1f,  1f);   // cyan
+    public Color debugRayColorIdle     = new Color(0f,  0.8f, 1f,  1f);
     [ColorUsage(true, true)]
-    public Color debugRayColorSelected = new Color(0f,  1f,   0.3f, 1f);  // green
+    public Color debugRayColorSelected = new Color(0f,  1f,   0.3f, 1f);
     [ColorUsage(true, true)]
-    public Color debugRayColorMiss     = new Color(1f,  0.3f, 0f,  1f);   // orange
+    public Color debugRayColorMiss     = new Color(1f,  0.3f, 0f,  1f);
 
     [Tooltip("Width of the debug ray tube")]
     public float debugRayWidth = 0.008f;
@@ -42,13 +47,18 @@ public class RobotSelector : MonoBehaviour
     [Header("Scene-View Gizmos")]
     public bool debugDrawGizmos = false;
 
+    public enum Hand { None, Left, Right }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     public NetoCommandPublisher   ActiveNeto   { get; private set; }
     public SauronCommandPublisher ActiveSauron { get; private set; }
+    public Hand                  ActiveHand   { get; private set; }
 
     private NetoCommandPublisher   _prevNeto;
     private SauronCommandPublisher _prevSauron;
+
+    private Camera _cam;
 
     // Debug ray state
     private Vector3 _debugRayOrigin;
@@ -62,30 +72,45 @@ public class RobotSelector : MonoBehaviour
     private MeshRenderer _tipRenderer;
     private MaterialPropertyBlock _tipMpb;
 
-    // ─────────────────────────────────────────────────────────────────────────
-
     void Awake()
     {
+        _cam = Camera.main;
         BuildDebugVisuals();
         _tipMpb = new MaterialPropertyBlock();
     }
 
     void Update()
     {
+        // ── Neto selection via body zones (always checked) ──
+        if (poseDetector.LeftHandAtLeftShoulder && leftShoulderNeto != null)
+        {
+            ActiveNeto = leftShoulderNeto;
+            ActiveHand = Hand.Left;
+        }
+        else if (poseDetector.RightHandAtRightShoulder && rightShoulderNeto != null)
+        {
+            ActiveNeto = rightShoulderNeto;
+            ActiveHand = Hand.Right;
+        }
+        else if (poseDetector.LeftHandAtThirdZone && thirdZoneNeto != null)
+        {
+            ActiveNeto = thirdZoneNeto;
+            ActiveHand = Hand.Left;
+        }
+        else if (poseDetector.RightHandAtThirdZone && thirdZoneNeto != null)
+        {
+            ActiveNeto = thirdZoneNeto;
+            ActiveHand = Hand.Right;
+        }
+        else if (poseDetector.CurrentPose != ControlPose.ChestMode)
+        {
+            ClearNeto();
+            ActiveHand = Hand.None;
+        }
+
+        // ── Sauron selection via chest mode ──
         switch (poseDetector.CurrentPose)
         {
-            case ControlPose.DirectionalLeft:
-                SelectNetoInDirection(poseDetector.leftController.position,
-                                      poseDetector.leftController.forward);
-                ClearSauron();
-                break;
-
-            case ControlPose.DirectionalRight:
-                SelectNetoInDirection(poseDetector.rightController.position,
-                                      poseDetector.rightController.forward);
-                ClearSauron();
-                break;
-
             case ControlPose.ChestMode:
                 ClearNeto();
                 SetAllSauronsSelected();
@@ -97,12 +122,10 @@ public class RobotSelector : MonoBehaviour
                 break;
 
             case ControlPose.None:
-                ClearNeto();
                 ClearSauron();
                 break;
         }
 
-        // Refresh indicators when selection changes
         if (ActiveNeto != _prevNeto || ActiveSauron != _prevSauron)
         {
             RefreshIndicators();
@@ -113,114 +136,11 @@ public class RobotSelector : MonoBehaviour
         RefreshDebugVisuals();
     }
 
-    // ── Selection Logic ──────────────────────────────────────────────────────
-
-    void SelectNetoInDirection(Vector3 origin, Vector3 direction)
-    {
-        if (direction.sqrMagnitude < 0.0001f) return;
-
-        _debugRayOrigin = origin;
-        _debugRayDir    = direction.normalized;
-        _debugHasHit    = false;
-
-        if (usePhysicsSelection)
-        {
-            SelectNetoWithSphereCast(origin, direction.normalized);
-            return;
-        }
-
-        // ── Geometric 3-D mode (no flat projection) ───────────────────────
-        NetoCommandPublisher best = null;
-        float bestAlongRay = float.PositiveInfinity;
-        float bestOffRay   = float.PositiveInfinity;
-        Vector3 dir = direction.normalized;
-
-        foreach (var neto in netoRobots)
-        {
-            if (neto == null) continue;
-            Vector3 toRobot = neto.transform.position - origin;
-
-            // Project robot onto ray
-            float alongRay = Vector3.Dot(dir, toRobot);
-            if (alongRay <= 0f || alongRay > selectionMaxDistance) continue;
-
-            // Closest point on ray to robot
-            Vector3 closestOnRay = origin + dir * alongRay;
-            float   offRay       = Vector3.Distance(closestOnRay, neto.transform.position);
-            if (offRay > selectionRayRadius) continue;
-
-            // Prefer whichever is first along the ray; break ties by off-ray dist
-            if (alongRay < bestAlongRay ||
-                (Mathf.Approximately(alongRay, bestAlongRay) && offRay < bestOffRay))
-            {
-                bestAlongRay = alongRay;
-                bestOffRay   = offRay;
-                best         = neto;
-                _debugTipPoint = closestOnRay;
-                _debugHasHit   = true;
-            }
-        }
-
-        // If no robot hit, put tip at max range for visualisation
-        if (!_debugHasHit)
-            _debugTipPoint = origin + dir * selectionMaxDistance;
-
-        if (best != ActiveNeto)
-        {
-            if (ActiveNeto != null) ActiveNeto.ResetToDefaults();
-            ActiveNeto = best;
-        }
-    }
-
-    void SelectNetoWithSphereCast(Vector3 origin, Vector3 direction)
-    {
-        _debugHasHit   = false;
-        _debugTipPoint = origin + direction * selectionMaxDistance;
-
-        var hits = Physics.SphereCastAll(origin, selectionRayRadius, direction,
-                                         selectionMaxDistance, selectionMask,
-                                         QueryTriggerInteraction.Ignore);
-
-        if (hits == null || hits.Length == 0)
-        {
-            if (ActiveNeto != null) { ActiveNeto.ResetToDefaults(); ActiveNeto = null; }
-            return;
-        }
-
-        float                bestDistance = float.PositiveInfinity;
-        NetoCommandPublisher best         = null;
-
-        foreach (var hit in hits)
-        {
-            if (hit.collider == null) continue;
-            var neto = hit.collider.GetComponentInParent<NetoCommandPublisher>();
-            if (neto == null) continue;
-
-            if (hit.distance < bestDistance)
-            {
-                bestDistance   = hit.distance;
-                best           = neto;
-                _debugTipPoint = hit.point;
-                _debugHasHit   = true;
-            }
-        }
-
-        // If sphere-cast returned hits but none had a NetoCommandPublisher, keep tip
-        if (!_debugHasHit)
-            _debugTipPoint = origin + direction * selectionMaxDistance;
-
-        if (best != ActiveNeto)
-        {
-            if (ActiveNeto != null) ActiveNeto.ResetToDefaults();
-            ActiveNeto = best;
-        }
-    }
-
     // ── State Helpers ────────────────────────────────────────────────────────
 
     void ClearNeto()
     {
-        if (ActiveNeto != null) { ActiveNeto.ResetToDefaults(); ActiveNeto = null; }
+        ActiveNeto = null;
     }
 
     void ClearSauron()
@@ -230,7 +150,7 @@ public class RobotSelector : MonoBehaviour
 
     void SetAllSauronsSelected()
     {
-        ActiveSauron = null; // chest mode drives Saurons directly
+        ActiveSauron = null;
     }
 
     // ── Indicator Management ─────────────────────────────────────────────────
@@ -264,7 +184,6 @@ public class RobotSelector : MonoBehaviour
 
     void BuildDebugVisuals()
     {
-        // ── LineRenderer ──
         var lineGO = new GameObject("DebugRayLine");
         lineGO.transform.SetParent(transform, false);
         _rayLine                  = lineGO.AddComponent<LineRenderer>();
@@ -275,12 +194,10 @@ public class RobotSelector : MonoBehaviour
         _rayLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         _rayLine.receiveShadows   = false;
 
-        // Use a simple URP unlit material so it renders in VR without lighting
         var rayMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         rayMat.EnableKeyword("_EMISSION");
         _rayLine.material = rayMat;
 
-        // ── Tip sphere ──
         _tipSphere            = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         _tipSphere.name       = "DebugRayTip";
         Destroy(_tipSphere.GetComponent<Collider>());
@@ -295,7 +212,6 @@ public class RobotSelector : MonoBehaviour
         tipMat.EnableKeyword("_EMISSION");
         _tipRenderer.sharedMaterial = tipMat;
 
-        // Start hidden
         _rayLine.enabled    = false;
         _tipSphere.SetActive(false);
     }
@@ -312,12 +228,10 @@ public class RobotSelector : MonoBehaviour
 
         if (!show) return;
 
-        // Pick colour based on whether we have a target
         Color col = ActiveNeto != null ? debugRayColorSelected
                   : _debugHasHit       ? debugRayColorIdle
                   :                      debugRayColorMiss;
 
-        // Update LineRenderer
         _rayLine.SetPosition(0, _debugRayOrigin);
         _rayLine.SetPosition(1, _debugTipPoint);
 
@@ -325,7 +239,6 @@ public class RobotSelector : MonoBehaviour
         mat.SetColor("_BaseColor",     col);
         mat.SetColor("_EmissionColor", col * 3f);
 
-        // Update tip sphere
         _tipSphere.transform.position   = _debugTipPoint;
         _tipSphere.transform.localScale = Vector3.one * debugTipRadius * 2f;
 
@@ -341,6 +254,24 @@ public class RobotSelector : MonoBehaviour
     {
         if (!debugDrawGizmos || poseDetector == null) return;
 
+        // Draw estimated body zones
+        if (debugDrawGizmos && poseDetector.headset != null)
+        {
+            Vector3 headPos = poseDetector.headset.position;
+
+            Gizmos.color = Color.blue;
+            Gizmos.DrawWireSphere(headPos + poseDetector.leftShoulderOffset, poseDetector.bodyZoneRadius);
+
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(headPos + poseDetector.rightShoulderOffset, poseDetector.bodyZoneRadius);
+
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(headPos + poseDetector.thirdZoneOffset, poseDetector.bodyZoneRadius);
+
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(headPos + Vector3.up * poseDetector.chestHeightOffset, poseDetector.chestRadius);
+        }
+
         bool directional = poseDetector.CurrentPose == ControlPose.DirectionalLeft ||
                            poseDetector.CurrentPose == ControlPose.DirectionalRight;
         if (!directional) return;
@@ -352,15 +283,6 @@ public class RobotSelector : MonoBehaviour
         {
             Gizmos.color = Color.yellow;
             Gizmos.DrawSphere(_debugTipPoint, debugTipRadius);
-        }
-
-        // Draw each robot's off-ray distance circle for tuning selectionRayRadius
-        if (netoRobots == null) return;
-        Gizmos.color = new Color(1f, 0.5f, 0f, 0.4f);
-        foreach (var neto in netoRobots)
-        {
-            if (neto == null) continue;
-            Gizmos.DrawWireSphere(neto.transform.position, selectionRayRadius);
         }
     }
 }
