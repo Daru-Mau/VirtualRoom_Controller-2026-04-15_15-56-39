@@ -165,51 +165,11 @@ public class PoseInputDispatcher : MonoBehaviour
             ? leftStickAction.action.ReadValue<Vector2>().y
             : rightStickAction.action.ReadValue<Vector2>().y;
 
-        // Joystick click → reset to zero (bottom) and send to hub
         bool stickClicked = isLeft
             ? leftStickPressAction != null && leftStickPressAction.action.WasPressedThisFrame()
             : rightStickPressAction != null && rightStickPressAction.action.WasPressedThisFrame();
 
-        if (stickClicked)
-        {
-            neto.SetMotorSpeedUnits(0);
-            _lastNetoMotor = 0;
-            return;
-        }
-
-        if (Time.time >= _netoNextSend)
-        {
-            int motorUnits;
-
-            if (stickY > netoDeadzone)
-            {
-                // Push up → move from bottom (0) toward top (180)
-                motorUnits = Mathf.RoundToInt(Mathf.Lerp(0f, 180f, stickY));
-            }
-            else if (stickY < -netoDeadzone)
-            {
-                // Push down → move from top (180) toward bottom (0)
-                motorUnits = Mathf.RoundToInt(Mathf.Lerp(180f, 0f, -stickY));
-            }
-            else
-            {
-                // Neutral → hold current position
-                motorUnits = _lastNetoMotor;
-            }
-
-            if (motorUnits != _lastNetoMotor)
-            {
-                neto.SetMotorSpeedUnits(motorUnits);
-                _lastNetoMotor = motorUnits;
-            }
-
-            _netoNextSend = Time.time + 1f / netoSendRateHz;
-        }
-
-        if (aButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 1);
-        if (bButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 2);
-        if (xButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 3);
-        if (yButtonAction.action.WasPressedThisFrame()) ApplyNetoPreset(neto, 0);
+        DriveNeto(neto, stickY, stickClicked);
     }
 
     // ── TWO-HAND GESTURE ─────────────────────────────────────────────
@@ -253,6 +213,18 @@ public class PoseInputDispatcher : MonoBehaviour
             ? leftStickPressAction != null && leftStickPressAction.action.WasPressedThisFrame()
             : rightStickPressAction != null && rightStickPressAction.action.WasPressedThisFrame();
 
+        DriveNeto(neto, stickY, stickClicked);
+    }
+
+    // ── NETO MOTOR ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Binary-direction Neto drive:
+    ///   180 → pull up     0 → release down     90 → stop
+    /// Firmware handles actual speed and position limits internally.
+    /// </summary>
+    void DriveNeto(NetoCommandPublisher neto, float stickY, bool stickClicked)
+    {
         if (stickClicked)
         {
             neto.SetMotorSpeedUnits(0);
@@ -265,11 +237,11 @@ public class PoseInputDispatcher : MonoBehaviour
             int motorUnits;
 
             if (stickY > netoDeadzone)
-                motorUnits = Mathf.RoundToInt(Mathf.Lerp(0f, 180f, stickY));
+                motorUnits = 180;
             else if (stickY < -netoDeadzone)
-                motorUnits = Mathf.RoundToInt(Mathf.Lerp(180f, 0f, -stickY));
+                motorUnits = 0;
             else
-                motorUnits = _lastNetoMotor;
+                motorUnits = 90;
 
             if (motorUnits != _lastNetoMotor)
             {

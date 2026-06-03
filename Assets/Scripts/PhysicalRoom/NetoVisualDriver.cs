@@ -1,14 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// Drives the visual up/down movement of a Neto robot in the VR scene.
+/// Drives the visual up/down movement of a Neto robot in the VR scene
+/// using real encoder telemetry (PositionMm / PositionMinMm / PositionMaxMm).
 ///
 /// Attach to the Neto_X_Rig GameObject (same one that has NetoCommandPublisher).
-///
-/// How it works:
-///   Motor unit   0 → lowest position (bottom).
-///   Motor unit 180 → highest position (top, at the wall).
-///
 /// The Handle transform (Neto_X_Handle) is moved along its local Y axis.
 /// The RopeVisual capsule is stretched to always span from the anchor to the handle.
 /// </summary>
@@ -30,11 +26,11 @@ public class NetoVisualDriver : MonoBehaviour
     [Tooltip("Fixed world-space anchor point where the rope is attached to the ceiling.")]
     [SerializeField] private Transform ropeAnchor;
 
-    [Header("Movement Bounds (local Y offset from start position)")]
-    [Tooltip("How far the handle can move UP from its starting position (metres).")]
-    [SerializeField] private float maxUpOffset = 1.5f;
-    [Tooltip("How far the handle can move DOWN from its starting position (metres).")]
-    [SerializeField] private float maxDownOffset = 1.5f;
+    [Header("VR Scene Position Bounds")]
+    [Tooltip("Handle local Y when the Neto is at its highest (fully retracted / physical min).")]
+    [SerializeField] private float handleTopY = 1.5f;
+    [Tooltip("Handle local Y when the Neto is at its lowest (fully extended / physical max).")]
+    [SerializeField] private float handleBottomY = -1.5f;
 
     [Header("Smoothing")]
     [Tooltip("How fast the handle lerps toward the target position (higher = snappier).")]
@@ -48,11 +44,10 @@ public class NetoVisualDriver : MonoBehaviour
     [Header("Telemetry")]
     [SerializeField, Range(0, 255)] private int latestMicLevel;
 
-    [Tooltip("How long after the last telemetry packet to keep using real position before falling back to speed simulation.")]
+    [Tooltip("How long after the last telemetry packet to keep applying real position (otherwise the handle stays put).")]
     [SerializeField, Range(0.1f, 2f)] private float telemetryTimeout = 0.5f;
 
     // ── Runtime ──────────────────────────────────────────────────────────
-    private float _startLocalY;
     private float _ropeBaseLength;
     private float _lastTelemetryTime = -100f;
     private float _telemetryPositionMm;
@@ -79,8 +74,6 @@ public class NetoVisualDriver : MonoBehaviour
             return;
         }
 
-        _startLocalY = handle.localPosition.y;
-
         // Auto-measure rope base scale if not manually set
         if (ropeVisual != null)
         {
@@ -98,7 +91,7 @@ public class NetoVisualDriver : MonoBehaviour
         if (Time.time - _lastTelemetryTime < telemetryTimeout)
             ApplyTelemetryPosition();
         else
-            MoveHandle();
+            ApplySimulatedPosition();
     }
 
     void OnDestroy()
@@ -107,38 +100,31 @@ public class NetoVisualDriver : MonoBehaviour
             telemetryReceiver.NetoTelemetryReceived -= HandleNetoTelemetry;
     }
 
-    // ── Handle Movement ───────────────────────────────────────────────────
-
-    void MoveHandle()
+    void ApplyTelemetryPosition()
     {
-        int speedUnits = publisher.CurrentMotorSpeedUnits;
+        float range = _telemetryMaxMm - _telemetryMinMm;
+        if (range <= 0f) return;
 
-        // Map 0 (bottom) → _startLocalY - maxDownOffset (lowest)
-        // Map 180 (top)  → _startLocalY + maxUpOffset (highest)
-        float t = speedUnits / 180f;
-        float targetY = (_startLocalY - maxDownOffset) + t * (maxDownOffset + maxUpOffset);
+        float t = Mathf.Clamp01((_telemetryPositionMm - _telemetryMinMm) / range);
+        float targetY = Mathf.Lerp(handleTopY, handleBottomY, t);
 
         Vector3 pos = handle.localPosition;
         pos.y = Mathf.Lerp(pos.y, targetY, Time.deltaTime * smoothSpeed);
         handle.localPosition = pos;
     }
 
-    void ApplyTelemetryPosition()
+    void ApplySimulatedPosition()
     {
-        float range = _telemetryMaxMm - _telemetryMinMm;
-        if (range <= 0f) return;
+        int speed = publisher.CurrentMotorSpeedUnits;
+        float targetY = handle.localPosition.y;
 
-        // t = 0 → at min → rope fully retracted → handle at highest Y
-        // t = 1 → at max → rope fully extended → handle at lowest Y
-        float t = Mathf.Clamp01((_telemetryPositionMm - _telemetryMinMm) / range);
-        float targetY = Mathf.Lerp(
-            _startLocalY + maxUpOffset,
-            _startLocalY - maxDownOffset,
-            t
-        );
+        if (speed > 90)
+            targetY = handleTopY;
+        else if (speed < 90)
+            targetY = handleBottomY;
 
         Vector3 pos = handle.localPosition;
-        pos.y = Mathf.Lerp(pos.y, targetY, 10f * Time.deltaTime);
+        pos.y = Mathf.Lerp(pos.y, targetY, Time.deltaTime * smoothSpeed);
         handle.localPosition = pos;
     }
 
@@ -172,17 +158,18 @@ public class NetoVisualDriver : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         if (handle == null) return;
-        // Draw movement range in the editor
-        Vector3 worldBase = transform.TransformPoint(new Vector3(
-            handle.localPosition.x,
-            _startLocalY,
-            handle.localPosition.z));
+
+        Vector3 top = transform.TransformPoint(
+            handle.localPosition.x, handleTopY, handle.localPosition.z);
+        Vector3 bottom = transform.TransformPoint(
+            handle.localPosition.x, handleBottomY, handle.localPosition.z);
 
         Gizmos.color = Color.green;
-        Gizmos.DrawLine(worldBase, worldBase + transform.up * maxUpOffset);
+        Gizmos.DrawWireSphere(top, 0.05f);
         Gizmos.color = Color.red;
-        Gizmos.DrawLine(worldBase, worldBase - transform.up * maxDownOffset);
+        Gizmos.DrawWireSphere(bottom, 0.05f);
         Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(top, bottom);
         Gizmos.DrawWireSphere(handle.position, 0.05f);
     }
 #endif

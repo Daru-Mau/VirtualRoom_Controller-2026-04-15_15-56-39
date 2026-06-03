@@ -467,8 +467,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   publisher: {fileID: 253557402}
-  yawPivot: {fileID: 0}
-  tiltPivot: {fileID: 0}
+  yawPivot: {fileID: 253557401}
+  tiltPivot: {fileID: 253557401}
   yawMaxDegrees: 90
   invertYaw: 0
   tiltMaxDegrees: 45
@@ -550,7 +550,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dfa1c38ef7441246ab39dd0553938c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  referenceTransform: {fileID: 0}
+  referenceTransform: {fileID: 1354082701}
   ringRadius: 0.4
   ringThickness: 0.03
   heightOffset: 0.1
@@ -576,11 +576,12 @@ MonoBehaviour:
   handle: {fileID: 490454951}
   ropeVisual: {fileID: 0}
   ropeAnchor: {fileID: 2088301697}
-  maxUpOffset: 1.5
-  maxDownOffset: 1.5
+  handleTopY: 0.441
+  handleBottomY: 0
   smoothSpeed: 5
   ropeBaseScaleY: 0
   latestMicLevel: 0
+  telemetryTimeout: 0.5
 --- !u!1001 &288750400
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -779,7 +780,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dfa1c38ef7441246ab39dd0553938c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  referenceTransform: {fileID: 0}
+  referenceTransform: {fileID: 1803941886}
   ringRadius: 0.4
   ringThickness: 0.03
   heightOffset: 0.1
@@ -805,11 +806,12 @@ MonoBehaviour:
   handle: {fileID: 1340624281}
   ropeVisual: {fileID: 0}
   ropeAnchor: {fileID: 2065671021}
-  maxUpOffset: 1.5
-  maxDownOffset: 1.5
+  handleTopY: 0.425
+  handleBottomY: 0
   smoothSpeed: 5
   ropeBaseScaleY: 0
   latestMicLevel: 0
+  telemetryTimeout: 0.5
 --- !u!1 &422706246
 GameObject:
   m_ObjectHideFlags: 0
@@ -1996,8 +1998,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   publisher: {fileID: 777780908}
-  yawPivot: {fileID: 0}
-  tiltPivot: {fileID: 0}
+  yawPivot: {fileID: 777780907}
+  tiltPivot: {fileID: 777780907}
   yawMaxDegrees: 90
   invertYaw: 0
   tiltMaxDegrees: 45
@@ -4632,7 +4634,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dfa1c38ef7441246ab39dd0553938c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  referenceTransform: {fileID: 0}
+  referenceTransform: {fileID: 6002947}
   ringRadius: 0.4
   ringThickness: 0.03
   heightOffset: 0.1
@@ -4658,11 +4660,12 @@ MonoBehaviour:
   handle: {fileID: 594455111}
   ropeVisual: {fileID: 0}
   ropeAnchor: {fileID: 422706251}
-  maxUpOffset: 1.5
-  maxDownOffset: 1.5
+  handleTopY: 0.548
+  handleBottomY: 0
   smoothSpeed: 5
   ropeBaseScaleY: 0
   latestMicLevel: 0
+  telemetryTimeout: 0.5
 --- !u!1 &1879940528
 GameObject:
   m_ObjectHideFlags: 0
